@@ -3,7 +3,7 @@
 .fuse_hidden*
 /target/
 /etc/*.pdf
-/etc/resutl.xml
+/etc/*result*.xml
 .settings
 .project
 .classpath
