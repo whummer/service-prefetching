@@ -1,5 +1,9 @@
-target/
-pom.xml.tag
-pom.xml.releaseBackup
-pom.xml.next
-release.properties
+/tmp/bbox_*.gz
+.attach_pid*
+.fuse_hidden*
+/target/
+/etc/*.pdf
+/etc/resutl.xml
+.settings
+.project
+.classpath

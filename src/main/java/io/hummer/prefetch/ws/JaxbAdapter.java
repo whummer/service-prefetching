@@ -1,0 +1,54 @@
+package io.hummer.prefetch.ws;
+
+import io.hummer.prefetch.impl.PrefetchingServiceImpl;
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.annotation.adapters.XmlAdapter;
+import javax.xml.soap.SOAPEnvelope;
+import javax.xml.transform.dom.DOMResult;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+
+/**
+ * Custom JAXB (un-)marshaller required to hold abstract  
+ * parameter types in some Web service interfaces.
+ * 
+ * @author Waldemar Hummer (hummer@dsg.tuwien.ac.at)
+ */
+public class JaxbAdapter extends XmlAdapter<Object,Object> {
+
+	public Object marshal(Object o) throws Exception {
+		if(o == null) {
+			return null;
+		}
+		if(o instanceof SOAPEnvelope) {
+			return WSClient.toElement(
+					WSClient.toString((SOAPEnvelope)o));
+		}
+		JAXBContext c = JAXBContext.newInstance(o.getClass());
+		DOMResult res = new DOMResult();
+		c.createMarshaller().marshal(o, res);
+		Element e = ((Document)res.getNode()).getDocumentElement();
+		e.setAttribute("class", o.getClass().getCanonicalName());
+		return e;
+	}
+
+	public Object unmarshal(Object o) throws Exception {
+		Element e = (Element)o;
+		String name = e.getLocalName();
+		if(name.equalsIgnoreCase("Envelope")) {
+			return WSClient.toEnvelope((Element)o);
+		} else {
+			Class<?> clazz = PrefetchingServiceImpl.class;
+			String className = e.getAttribute("class");
+			if(!className.isEmpty()) {
+				clazz = Class.forName(className);
+			}
+			JAXBContext c = JAXBContext.newInstance(clazz);
+			Object res = c.createUnmarshaller().unmarshal(e);
+			return res;
+		}
+	}
+
+}
