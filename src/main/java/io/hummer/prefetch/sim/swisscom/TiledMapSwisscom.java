@@ -1,10 +1,11 @@
 package io.hummer.prefetch.sim.swisscom;
 
-import javax.xml.bind.annotation.XmlRootElement;
-import javax.xml.bind.annotation.XmlSeeAlso;
-
 import io.hummer.osm.model.Tile;
 import io.hummer.osm.model.TiledMapAbstract;
+import io.hummer.prefetch.context.NetworkQuality;
+
+import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlSeeAlso;
 
 /**
  * TiledMap implementation for Swisscom cellular coverage maps.
@@ -12,11 +13,11 @@ import io.hummer.osm.model.TiledMapAbstract;
  */
 @XmlRootElement
 @XmlSeeAlso(CellularCoverage.class)
-public class TiledMapSwisscom extends TiledMapAbstract<CellularCoverage> {
+public class TiledMapSwisscom extends TiledMapAbstract<NetworkQuality> {
 	@SuppressWarnings("all")
 	private static final long serialVersionUID = 1L;
 
-	public CellularCoverage loadLazily(Tile t1) {
+	public NetworkQuality loadLazily(Tile t1) {
 		/* lazy loading should never happen here */
 		throw new RuntimeException("not supported");
 	}

@@ -1,11 +1,9 @@
 package io.hummer.prefetch.sim;
 
 import io.hummer.prefetch.TestConstants;
-import io.hummer.prefetch.VehicleInfoService;
 import io.hummer.prefetch.PrefetchingService.ServiceInvocation;
-import io.hummer.prefetch.VehicleInfoService.VehicleInfoServiceImpl;
 import io.hummer.prefetch.client.ServiceInvocationBuilder;
-import io.hummer.prefetch.impl.Context;
+import io.hummer.prefetch.context.Context;
 import io.hummer.prefetch.impl.InvocationPredictor;
 import io.hummer.prefetch.impl.UsagePattern;
 import io.hummer.prefetch.impl.UsagePattern.ServiceUsage;
@@ -14,8 +12,11 @@ import io.hummer.prefetch.sim.VehicleSimulation.MovingEntities;
 import io.hummer.prefetch.sim.VehicleSimulation.MovingEntity;
 import io.hummer.prefetch.sim.VehicleSimulation.ServiceUsagePattern;
 import io.hummer.prefetch.sim.util.Util;
+import io.hummer.prefetch.sim.ws.VehicleInfoService;
+import io.hummer.prefetch.sim.ws.VehicleInfoService.VehicleInfoServiceImpl;
 import io.hummer.prefetch.ws.W3CEndpointReferenceUtils;
 import io.hummer.prefetch.ws.WSClient;
+import io.hummer.util.xml.XMLUtil;
 
 import java.io.File;
 import java.util.Collections;
@@ -35,6 +36,7 @@ public class SimulationTestData {
 			+ "/Desktop/traces.txt";
 	// private static List<String> file = new LinkedList<>();
 	private static Map<String, List<String>> file = new HashMap<>();
+	private static XMLUtil xmlUtil = new XMLUtil();
 
 	public static MovingEntity getData(String id) {
 		List<String> lines = getLines(id);
@@ -82,10 +84,10 @@ public class SimulationTestData {
 		String file = Constants.TMP_DIR + "/traces.xml.gz";
 		MovingEntities result = new MovingEntities();
 		if(new File(file).exists()) {
-			String content = Util.loadGzippedObject(file);
+			String content = Util.loadStringFromGzip(file);
 			try {
-				result = Util.toJaxbObject(MovingEntities.class, 
-						Util.toElement(content));
+				result = xmlUtil.toJaxbObject(MovingEntities.class, 
+						xmlUtil.toElement(content));
 			} catch (Exception e) {
 				throw new RuntimeException(e);
 			}
@@ -104,14 +106,19 @@ public class SimulationTestData {
 				System.out.println("adding entity " + i + ": " + 
 						ent.path.size() + " points - " + Math.abs(t2 - t1) + "ms");
 				ent.getNetworkOutages();
-				String xml = Util.toString(result);
-				Util.storeObjectGzipped(file, xml);
+				try {
+					String xml = xmlUtil.toString(result);
+					Util.storeStringGzipped(file, xml);
+				} catch (Exception e) {
+					throw new RuntimeException(e);
+				}
 			}
 			MovingEntity ent = result.getEntity(id);
 			/* assert that path order is correct */
 			for(int j = 0; j < ent.path.size() - 1; j ++) {
-				timeBetweenPoints += ent.path.get(j + 1).time.time - ent.path.get(j).time.time;
-				if(ent.path.get(j).time.time > ent.path.get(j + 1).time.time) {
+				timeBetweenPoints += ent.path.points.get(j + 1).time.time - 
+						ent.path.points.get(j).time.time;
+				if(ent.path.points.get(j).time.time > ent.path.points.get(j + 1).time.time) {
 					throw new RuntimeException("non-chronological path order");
 				}
 			}
@@ -159,7 +166,7 @@ public class SimulationTestData {
 			tmp.prefetchPossible = prefetchPossible;
 			tmp.serviceEPR = eprTrafficService;
 			ServiceInvocationBuilder b = new ServiceInvocationBuilder.
-					TemplateBasedInvocationBuilder(Util.toString(tmp));
+					TemplateBasedInvocationBuilder(xmlUtil.toString(tmp));
 			b.prefetchPossible = tmp.prefetchPossible;
 			b.serviceEPR = tmp.serviceEPR;
 			ServiceUsage use = new ServiceUsage();
@@ -191,14 +198,16 @@ public class SimulationTestData {
 			ent.usagePatterns.add(new ServiceUsagePattern(inv2, UsagePattern.constant(20)));
 		}
 	}
-	
 
-	private static String urlTrafficService = 
-			"http://localhost:8283/traffic";
-	private static W3CEndpointReference eprTrafficService = 
-			W3CEndpointReferenceUtils.createEndpointReference(
-					urlTrafficService);
-	static void deployTestServices() {
+	private static String urlTrafficService;
+	private static W3CEndpointReference eprTrafficService;
+	public static void setServiceURL(String serviceURL) {
+		urlTrafficService = serviceURL;
+		eprTrafficService = W3CEndpointReferenceUtils.
+				createEndpointReference(urlTrafficService);
+	}
+	static void deployTestServices(String url) {
+		setServiceURL(url);
 		VehicleInfoService s = new VehicleInfoServiceImpl();
 		Endpoint.publish(urlTrafficService, s);
 	}

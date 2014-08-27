@@ -6,6 +6,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -26,26 +27,58 @@ public abstract class TimeClock {
 		return instance.get().getTime();
 	}
 	public static void setTime(double time) {
-		instance.set(new TimeClockManual(time));
-		runTasks();
+		if(!(instance.get() instanceof TimeClockManual))
+			instance.set(new TimeClockManual(time));
+		TimeClockManual t = (TimeClockManual)instance.get();
+		t.setTheTime(time);
+		t.runTasks();
 	}
 
 	abstract double getTime();
 
+	abstract void scheduleTask(TimerTask task, double delaySecs);
+
 	public static class TimeClockSystem extends TimeClock {
+		
+		final Timer timer = new Timer();
+		
 		@Override
 		public double getTime() {
 			return ((double)System.currentTimeMillis()) / 1000.0;
 		}
+		@Override
+		void scheduleTask(TimerTask task, double delaySecs) {
+			timer.schedule(task, (long)(delaySecs * 1000.0));
+		}
 	}
 	public static class TimeClockManual extends TimeClock {
+		
 		double time;
+		final Map<TimerTask,Double> tasks = new HashMap<TimerTask,Double>();
+		
 		public TimeClockManual(double time) {
 			this.time = time;
 		}
 		@Override
 		public double getTime() {
 			return time;
+		}
+		public void setTheTime(double time) {
+			this.time = time;
+		}
+		@Override
+		void scheduleTask(TimerTask task, double delaySecs) {
+			tasks.put(task, now() + delaySecs);
+		}
+		private void runTasks() {
+			double now = now();
+			for(Entry<TimerTask,Double> e : new HashSet<>(tasks.entrySet())) {
+				if(e.getValue() >= now) {
+					tasks.remove(e.getKey());
+					//GlobalThreadPool.execute(e.getKey());
+					e.getKey().run();
+				}
+			}
 		}
 	}
 
@@ -67,20 +100,8 @@ public abstract class TimeClock {
 		return result;
 	}
 
-	private static Map<TimerTask,Double> tasks = new HashMap<TimerTask,Double>();
 	public static void schedule(TimerTask task, double delaySecs) {
-		tasks.put(task, now() + delaySecs);
-	}
-
-	private static void runTasks() {
-		double now = now();
-		for(Entry<TimerTask,Double> e : new HashSet<>(tasks.entrySet())) {
-			if(e.getValue() >= now) {
-				tasks.remove(e.getKey());
-				//GlobalThreadPool.execute(e.getKey());
-				e.getKey().run();
-			}
-		}
+		instance.get().scheduleTask(task, delaySecs);
 	}
 
 }

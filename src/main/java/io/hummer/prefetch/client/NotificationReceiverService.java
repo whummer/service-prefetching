@@ -12,7 +12,7 @@ import javax.xml.ws.Endpoint;
  * Simple implementation of the prefetching notification service.
  * @author Waldemar Hummer (hummer@dsg.tuwien.ac.at)
  */
-@WebService(endpointInterface = "eu.simpli_city.ctx_personalize.interfaces.PrefetchingService$PrefetchingResultReceiver")
+@WebService(endpointInterface = "io.hummer.prefetch.PrefetchingService$PrefetchingResultReceiver")
 public class NotificationReceiverService implements PrefetchingService.PrefetchingResultReceiver {
 
 	public static final String NAMESPACE = "http://simpli-city.eu/notify";

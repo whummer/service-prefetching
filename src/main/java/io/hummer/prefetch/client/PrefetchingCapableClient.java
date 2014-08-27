@@ -2,11 +2,11 @@ package io.hummer.prefetch.client;
 
 import io.hummer.osm.util.Util;
 import io.hummer.prefetch.PrefetchingService.PrefetchingResultReceiver;
-import io.hummer.prefetch.impl.Context;
+import io.hummer.prefetch.context.Context;
+import io.hummer.prefetch.context.Context.ContextChangeListener;
 import io.hummer.prefetch.impl.InvocationComparator;
 import io.hummer.prefetch.impl.PrefetchingServiceImpl;
 import io.hummer.prefetch.impl.TimeClock;
-import io.hummer.prefetch.impl.Context.ContextChangeListener;
 import io.hummer.prefetch.sim.util.AuditEvent;
 
 import java.io.IOException;

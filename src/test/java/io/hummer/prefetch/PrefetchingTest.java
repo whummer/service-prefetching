@@ -3,10 +3,11 @@ package io.hummer.prefetch;
 import static org.junit.Assert.assertTrue;
 import io.hummer.prefetch.PrefetchingService.PrefetchRequest;
 import io.hummer.prefetch.PrefetchingService.PrefetchResponse;
-import io.hummer.prefetch.VehicleInfoService.VehicleInfoServiceImpl;
 import io.hummer.prefetch.client.NotificationReceiverService;
-import io.hummer.prefetch.impl.Context;
+import io.hummer.prefetch.context.Context;
 import io.hummer.prefetch.impl.PrefetchingServiceImpl;
+import io.hummer.prefetch.sim.ws.VehicleInfoService;
+import io.hummer.prefetch.sim.ws.VehicleInfoService.VehicleInfoServiceImpl;
 import io.hummer.prefetch.strategy.PrefetchStrategyNone;
 import io.hummer.prefetch.strategy.PrefetchStrategyPeriodic;
 import io.hummer.prefetch.ws.W3CEndpointReferenceUtils;
@@ -61,7 +62,7 @@ public class PrefetchingTest {
 				"<tns:getTrafficInfo " +
 				"xmlns:tns=\"" + VehicleInfoService.NAMESPACE + "\"/>");
 		request.invocation.serviceCall = WSClient.createEnvelopeFromBody(body);
-		request.strategy = new PrefetchStrategyPeriodic(1000);
+		request.strategy = new PrefetchStrategyPeriodic(1);
 		PrefetchResponse response = prefetch.setPrefetchingStrategy(request);
 
 		Thread.sleep(2000);

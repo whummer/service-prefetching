@@ -64,7 +64,7 @@
 		<dependency>
 			<groupId>io.hummer</groupId>
 			<artifactId>utils-test</artifactId>
-			<version>1-SNAPSHOT</version>
+			<version>1.0.0</version>
 		</dependency>
 
 	</dependencies>
@@ -113,11 +113,10 @@
 						<configuration>
 							<executable>java</executable>
 							<arguments>
-								<argument>-classpath</argument>
+								<argument>-cp</argument>
 								<classpath />
 								<argument>io.hummer.prefetch.sim.SimulationMain</argument>
 							</arguments>
-							<!-- <mainClass>io.hummer.prefetch.sim.SimulationMain</mainClass>-->
 							<classpathScope>test</classpathScope>
 						</configuration>
 					</plugin>

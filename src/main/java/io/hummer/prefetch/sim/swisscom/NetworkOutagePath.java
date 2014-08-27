@@ -1,7 +1,7 @@
 package io.hummer.prefetch.sim.swisscom;
 
 import io.hummer.osm.OpenStreetMap;
-import io.hummer.prefetch.sim.VehicleSimulation.PathPoint;
+import io.hummer.prefetch.context.Path.PathPoint;
 
 import java.util.LinkedList;
 import java.util.List;

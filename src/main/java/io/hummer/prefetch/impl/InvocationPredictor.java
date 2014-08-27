@@ -2,6 +2,7 @@ package io.hummer.prefetch.impl;
 
 import io.hummer.prefetch.PrefetchingService.ServiceInvocation;
 import io.hummer.prefetch.client.ServiceInvocationBuilder.TemplateBasedInvocationBuilder;
+import io.hummer.prefetch.context.ContextPredictor;
 
 import java.util.List;
 

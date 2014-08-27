@@ -1,5 +1,7 @@
 package io.hummer.prefetch.sim.util;
 
+import io.hummer.util.xml.XMLUtil;
+
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -15,6 +17,8 @@ import org.w3c.dom.Element;
 public class CollectionXmlAdapter extends XmlAdapter<Object, Object> {
 	private static final String NAMESPACE = "http://jaxbAdapter";
     
+	private static XMLUtil xmlUtil = new XMLUtil();
+	
 	@Override
 	@SuppressWarnings("all")
 	public Object marshal(Object o) throws Exception {
@@ -30,10 +34,10 @@ public class CollectionXmlAdapter extends XmlAdapter<Object, Object> {
 				Entry entry = (Entry)e;
 				b.append("<j:e>");
 				b.append("<k>");
-				b.append(Util.toString(marshal(entry.getKey())));
+				b.append(xmlUtil.toString(marshal(entry.getKey())));
 				b.append("</k>");
 				b.append("<v>");
-				b.append(Util.toString(marshal(entry.getValue())));
+				b.append(xmlUtil.toString(marshal(entry.getValue())));
 				b.append("</v>");
 				b.append("</j:e>");
 			}
@@ -43,22 +47,22 @@ public class CollectionXmlAdapter extends XmlAdapter<Object, Object> {
 			b.append("<j:list xmlns:j=\"" + NAMESPACE + "\">");
 			for(Object i : list) {
 				b.append("<j:i>");
-				b.append(Util.toString(marshal(i)));
+				b.append(xmlUtil.toString(marshal(i)));
 				b.append("</j:i>");
 			}
 			b.append("</j:list>");
 		} else if(o instanceof Element) {
 			return (Element)o;
 		} else {
-			return Util.toElement(o);
+			return xmlUtil.toElement(o);
 		}
-		return Util.toElement(b.toString());
+		return xmlUtil.toElement(b.toString());
 	}
 	@Override
 	@SuppressWarnings("all")
 	public Object unmarshal(Object v) throws Exception {
 		Element e = (Element)v;
-		List<Element> children = Util.getChildElements(e);
+		List<Element> children = xmlUtil.getChildElements(e);
 		if(NAMESPACE.equals(e.getNamespaceURI()) || (children.size() > 0 && 
 				NAMESPACE.equals(children.get(0).getNamespaceURI()))) {
 			if(e.getLocalName().equals("map") || e.getLocalName().equals("sortedMap") 
@@ -69,9 +73,9 @@ public class CollectionXmlAdapter extends XmlAdapter<Object, Object> {
 					map = new TreeMap();
 				}
 				for(Element entry : children) {
-					List<Element> keyAndValue = Util.getChildElements(entry);
-					Object key = unmarshal(Util.getChildElements(keyAndValue.get(0)).get(0));
-					Object value = unmarshal(Util.getChildElements(keyAndValue.get(1)).get(0));
+					List<Element> keyAndValue = xmlUtil.getChildElements(entry);
+					Object key = unmarshal(xmlUtil.getChildElements(keyAndValue.get(0)).get(0));
+					Object value = unmarshal(xmlUtil.getChildElements(keyAndValue.get(1)).get(0));
 					map.put(key, value);
 				}
 				return map;
@@ -79,13 +83,13 @@ public class CollectionXmlAdapter extends XmlAdapter<Object, Object> {
 					children.get(0).getLocalName().equals("i"))) { // i = list item
 				List list = new LinkedList();
 				for(Element item : children) {
-					Object itemObj = unmarshal(Util.getChildElements(item).get(0));
+					Object itemObj = unmarshal(xmlUtil.getChildElements(item).get(0));
 					list.add(itemObj);
 				}
 				return list;
 			} 
 		}
-		Object returnObj = Util.toJaxbObject(e);
+		Object returnObj = xmlUtil.toJaxbObject(e);
 		return returnObj;
 	}
 

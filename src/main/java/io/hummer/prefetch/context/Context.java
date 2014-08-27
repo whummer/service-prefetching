@@ -1,4 +1,4 @@
-package io.hummer.prefetch.impl;
+package io.hummer.prefetch.context;
 
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -107,6 +107,18 @@ public class Context<T> {
 
 	public void addChangeListener(ContextChangeListener<T> listener) {
 		listeners.add(listener);
+	}
+
+	public Context<T> copy() {
+		return copy(false);
+	}
+	public Context<T> copy(boolean includeListeners) {
+		Context<T> copy = new Context<>();
+		copy.entries.putAll(entries);
+		if(includeListeners) {
+			copy.listeners.addAll(listeners);
+		}
+		return copy;
 	}
 
 }

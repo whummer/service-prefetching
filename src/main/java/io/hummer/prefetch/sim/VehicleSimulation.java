@@ -1,8 +1,11 @@
 package io.hummer.prefetch.sim;
 
 import io.hummer.osm.OpenStreetMap;
-import io.hummer.osm.model.Point;
 import io.hummer.prefetch.PrefetchingService.ServiceInvocation;
+import io.hummer.prefetch.context.Location;
+import io.hummer.prefetch.context.Path;
+import io.hummer.prefetch.context.Path.PathPoint;
+import io.hummer.prefetch.context.Time;
 import io.hummer.prefetch.impl.UsagePattern;
 import io.hummer.prefetch.sim.swisscom.CellularCoverage;
 import io.hummer.prefetch.sim.swisscom.NetworkOutagePath;
@@ -24,51 +27,8 @@ import javax.xml.bind.annotation.XmlTransient;
  */
 public class VehicleSimulation {
 
-	@XmlRootElement
-	public static class Time implements Comparable<Time>, Serializable {
-		private static final long serialVersionUID = 1L;
-		@XmlElement(name="t")
-		public double time;
-		public int compareTo(Time o) {
-			return Double.valueOf(time).compareTo(o.time);
-		}
-		@Override
-		public int hashCode() {
-			long temp = Double.doubleToLongBits(time);
-			return (int) (temp ^ (temp >>> 32));
-		}
-		@Override
-		public boolean equals(Object obj) {
-			if (this == obj)
-				return true;
-			if (obj == null)
-				return false;
-			if (getClass() != obj.getClass())
-				return false;
-			Time other = (Time) obj;
-			if (Double.doubleToLongBits(time) != Double
-					.doubleToLongBits(other.time))
-				return false;
-			return true;
-		}
-		@Override
-		public String toString() {
-			return "T(" + time + ")";
-		}
-	}
-	@XmlRootElement(name="coords")
-	public static class Coordinates implements Serializable {
-		private static final long serialVersionUID = 1L;
-		public double x, y, z;
-		public double lat, lon;
-		public Point toPoint() {
-			return new Point(lon, lat);
-		}
-		@Override
-		public String toString() {
-			return "[" + lat + "," + lon + "]";
-		}
-	}
+	
+	
 	@XmlRootElement
 	public static class MovingEntities implements Serializable {
 		private static final long serialVersionUID = 1L;
@@ -83,23 +43,6 @@ public class VehicleSimulation {
 					return e;
 			}
 			return null;
-		}
-	}
-	@XmlRootElement(name = "entry")
-	public static class PathPoint implements Serializable {
-		private static final long serialVersionUID = 1L;
-		@XmlElement(name="t")
-		public Time time;
-		@XmlElement(name="c")
-		public Coordinates coordinates;
-		@XmlElement(name="u")
-		public Boolean isUndergroundTunnel;
-		@XmlElement(name="n")
-		public CellularCoverage cellNetworkCoverage;
-
-		@Override
-		public String toString() {
-			return "P(" + coordinates + ":" + time + ")";
 		}
 	}
 
@@ -120,17 +63,12 @@ public class VehicleSimulation {
 	@XmlRootElement
 	public static class MovingEntity implements Serializable {
 		private static final long serialVersionUID = 1L;
-		@XmlElement(name="p")
-		public final List<PathPoint> path = new LinkedList<>();
+		@XmlElement(name="path")
+		public final Path path = new Path();
 		@XmlAttribute
 		public String id;
-		@XmlElement
+		@XmlTransient
 		public List<ServiceUsagePattern> usagePatterns = new LinkedList<ServiceUsagePattern>();
-
-		@XmlTransient
-		private double startTime = -1;
-		@XmlTransient
-		private double endTime = -1;
 
 		public double predictNetworkUsage(double time) {
 			List<UsagePattern> patterns = new LinkedList<UsagePattern>();
@@ -146,7 +84,7 @@ public class VehicleSimulation {
 				double height, boolean loadDetails) {
 			Time t = new Time();
 			t.time = time;
-			Coordinates c = new Coordinates();
+			Location c = new Location();
 			c.x = east; c.y = north; c.z = height;
 			double[] coords = Util.convertSwissToGPS(east, north, height);
 			c.lat = coords[0];
@@ -169,7 +107,7 @@ public class VehicleSimulation {
 		public List<NetworkOutagePath> getNetworkOutages() {
 			List<NetworkOutagePath> result = new LinkedList<>();
 			NetworkOutagePath tmp = null;
-			for(PathPoint p : path) {
+			for(PathPoint p : path.points) {
 				if(!p.cellNetworkCoverage.hasAnyCoverage()) {
 					if(tmp == null)
 						tmp = new NetworkOutagePath();
@@ -189,33 +127,11 @@ public class VehicleSimulation {
 		}
 
 		public PathPoint getLocationAtTime(double t) {
-			if((startTime < 0 || endTime < 0) && !path.isEmpty()) {
-				startTime = path.get(0).time.time;
-				endTime = path.get(path.size() - 1).time.time;
-			}
-			if(t < startTime || t > endTime) {
-				return null;
-			}
-			int count = 0;
-			for(PathPoint p : path) {
-				count ++;
-				if(count >= path.size()) {
-					return null; // when reaching the last position, this vehichle's route is over.
-				} else if(p.time.time > t) {
-					return p;
-				}
-			}
-			return null;
+			return path.getLocationAtTime(t);
 		}
 
-		public List<PathPoint> getFuturePathAt(double t) {
-			for(int i = 0; i < path.size(); i ++) {
-				PathPoint p = path.get(i);
-				if(p.time.time > t) {
-					return path.subList(i, path.size());
-				}
-			}
-			return new LinkedList<>();
+		public Path getFuturePathAt(double t) {
+			return path.getFuturePathAt(t);
 		}
 
 		public double getMissingDataSizeAtTime(double t) {

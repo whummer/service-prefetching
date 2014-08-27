@@ -2,10 +2,10 @@ package io.hummer.prefetch.strategy;
 
 import io.hummer.prefetch.PrefetchStrategy;
 import io.hummer.prefetch.PrefetchingService.ServiceInvocation;
-import io.hummer.prefetch.impl.Context;
+import io.hummer.prefetch.context.Context;
+import io.hummer.prefetch.context.Path.PathPoint;
 import io.hummer.prefetch.impl.TimeClock;
 import io.hummer.prefetch.impl.UsagePattern;
-import io.hummer.prefetch.sim.VehicleSimulation.PathPoint;
 
 import java.util.List;
 

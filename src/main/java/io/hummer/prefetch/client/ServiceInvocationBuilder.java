@@ -1,8 +1,8 @@
 package io.hummer.prefetch.client;
 
 import io.hummer.prefetch.PrefetchingService.ServiceInvocation;
-import io.hummer.prefetch.impl.Context;
-import io.hummer.prefetch.sim.util.Util;
+import io.hummer.prefetch.context.Context;
+import io.hummer.util.xml.XMLUtil;
 
 /**
  * Most prefetching tasks will have to prefetch similar but slightly different 
@@ -18,6 +18,7 @@ import io.hummer.prefetch.sim.util.Util;
 public abstract class ServiceInvocationBuilder extends ServiceInvocation {
 
 	public abstract ServiceInvocation buildInvocation(Context<Object> context);
+	private static XMLUtil xmlUtil = new XMLUtil();
 
 	public static class TemplateBasedInvocationBuilder extends ServiceInvocationBuilder {
 		String template;
@@ -30,7 +31,7 @@ public abstract class ServiceInvocationBuilder extends ServiceInvocation {
 				tmp = tmp.replace("{{" + key + "}}", "" + context.getAttribute(key));
 			}
 			try {
-				return Util.toJaxbObject(ServiceInvocation.class, Util.toElement(tmp));
+				return xmlUtil.toJaxbObject(ServiceInvocation.class, xmlUtil.toElement(tmp));
 			} catch (Exception e) {
 				throw new RuntimeException(e);
 			}

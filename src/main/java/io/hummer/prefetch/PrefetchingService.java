@@ -37,6 +37,7 @@ public interface PrefetchingService {
 		public long subscriptionID;
 		@XmlJavaTypeAdapter(JaxbAdapter.class)
 		public ServiceInvocation serviceInvocation;
+		@XmlJavaTypeAdapter(JaxbAdapter.class)
 		public SOAPEnvelope result;
 	}
 
@@ -104,6 +105,18 @@ public interface PrefetchingService {
 		 */
 		@XmlJavaTypeAdapter(JaxbAdapter.class)
 		public PrefetchStrategy strategy;
+		/**
+		 * The importance of this service invocation; 
+		 * higher value means more important.
+		 */
+		public double importance;
+		/**
+		 * The time criticality of this service invocation; 
+		 * range from 0 (can be executed at any time) 
+		 * to 1 (can only be requested at the exact time).
+		 */
+		public double timeCriticality;
+
 		/* helper method */
 		public PrefetchRequest setNotifyLocal(
 				PrefetchingResultReceiver receiver) {

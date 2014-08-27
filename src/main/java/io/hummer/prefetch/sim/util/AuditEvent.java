@@ -1,8 +1,6 @@
 package io.hummer.prefetch.sim.util;
 
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -18,7 +16,7 @@ public class AuditEvent {
 	public static final String E_PREFETCH_HIT = "prefetch.hit";
 	public static final String E_PREFETCH_MISS = "prefetch.miss";
 
-	private static final List<AuditEvent> events = new LinkedList<>();
+	//private static final List<AuditEvent> events = new LinkedList<>();
 	private static final Map<EventListener,String> listeners = new HashMap<EventListener,String>();
 
 	public long systemTime;
@@ -39,7 +37,7 @@ public class AuditEvent {
 		e.type = eventType;
 		e.time = time;
 		e.data = data;
-		events.add(e);
+		//events.add(e);
 		for(Entry<EventListener,String> entry : listeners.entrySet()) {
 			if(eventType.matches(entry.getValue())) {
 				entry.getKey().notify(e);
@@ -48,15 +46,15 @@ public class AuditEvent {
 		return e;
 	}
 
-	public static List<AuditEvent> getEvents(String typeRegex) {
-		List<AuditEvent> result = new LinkedList<AuditEvent>();
-		for(AuditEvent e : events) {
-			if(e.type.matches(typeRegex)) {
-				result.add(e);
-			}
-		}
-		return result;
-	}
+//	public static List<AuditEvent> getEvents(String typeRegex) {
+//		List<AuditEvent> result = new LinkedList<AuditEvent>();
+//		for(AuditEvent e : events) {
+//			if(e.type.matches(typeRegex)) {
+//				result.add(e);
+//			}
+//		}
+//		return result;
+//	}
 
 	@Override
 	public String toString() {

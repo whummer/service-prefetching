@@ -1,4 +1,4 @@
-package io.hummer.prefetch;
+package io.hummer.prefetch.sim.ws;
 
 import javax.jws.WebService;
 import javax.jws.soap.SOAPBinding;
@@ -10,7 +10,7 @@ public interface VehicleInfoService {
 
 	public static final String NAMESPACE = "http://simpli-city.eu/prefetch";
 
-	@WebService(endpointInterface = "eu.simpli_city.ctx_personalize.impl.prefetch.VehicleInfoService")
+	@WebService(endpointInterface = "io.hummer.prefetch.sim.ws.VehicleInfoService")
 	public static class VehicleInfoServiceImpl implements VehicleInfoService {
 		public GetTrafficInfoResponse getTrafficInfo(GetTrafficInfo request) {
 			return new GetTrafficInfoResponse();

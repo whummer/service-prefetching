@@ -2,6 +2,7 @@ package io.hummer.prefetch.impl;
 
 import io.hummer.prefetch.PrefetchingService;
 import io.hummer.prefetch.client.ServiceInvocationBuilder;
+import io.hummer.prefetch.context.Context;
 import io.hummer.prefetch.strategy.PrefetchStrategyPeriodic;
 import io.hummer.prefetch.ws.W3CEndpointReferenceUtils;
 import io.hummer.prefetch.ws.WSClient;
@@ -24,7 +25,7 @@ import org.w3c.dom.Element;
  * @author Waldemar Hummer (hummer@dsg.tuwien.ac.at)
  */
 @WebService(
-		endpointInterface = "eu.simpli_city.ctx_personalize.interfaces.PrefetchingService",
+		endpointInterface = "io.hummer.prefetch.PrefetchingService",
 		targetNamespace = PrefetchingService.NAMESPACE
 )
 public class PrefetchingServiceImpl implements PrefetchingService {
