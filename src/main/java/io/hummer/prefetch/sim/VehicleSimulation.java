@@ -70,16 +70,6 @@ public class VehicleSimulation {
 		@XmlTransient
 		public List<ServiceUsagePattern> usagePatterns = new LinkedList<ServiceUsagePattern>();
 
-		public double predictNetworkUsage(double time) {
-			List<UsagePattern> patterns = new LinkedList<UsagePattern>();
-			for(ServiceUsagePattern p : usagePatterns) {
-				patterns.add(p.pattern);
-			}
-			return UsagePattern.combine(
-					patterns.toArray(new UsagePattern[0])
-				).predictUsage(time);
-		}
-
 		public void addPathPoint(double time, double east, double north, 
 				double height, boolean loadDetails) {
 			Time t = new Time();
@@ -134,17 +124,28 @@ public class VehicleSimulation {
 			return path.getFuturePathAt(t);
 		}
 
-		public double getMissingDataSizeAtTime(double t) {
-			PathPoint pt = getLocationAtTime(t);
-			if(pt == null)
-				return 0;
-			double usage = predictNetworkUsage(t);
-			double capacity = 
-					pt.cellNetworkCoverage.getMaxSpeed().getCapacityKbitPerSec();
-			if(usage > capacity)
-				return usage - capacity;
-			return 0;
-		}
+//		public double getMissingDataSizeAtTime(double t) {
+//			PathPoint pt = getLocationAtTime(t);
+//			if(pt == null)
+//				return 0;
+//			double usage = predictNetworkUsage(t);
+//			double capacity = 
+//					pt.cellNetworkCoverage.getMaxSpeed().getCapacityKbitPerSec();
+//			if(usage > capacity)
+//				return usage - capacity;
+//			return 0;
+//		}
+
+//		public double predictNetworkUsage(double time) {
+//			List<UsagePattern> patterns = new LinkedList<UsagePattern>();
+//			for(ServiceUsagePattern p : usagePatterns) {
+//				patterns.add(p.pattern);
+//			}
+//			return UsagePattern.combine(
+//					patterns.toArray(new UsagePattern[0])
+//				).predictUsage(time);
+//		}
+
 	}
 
 }

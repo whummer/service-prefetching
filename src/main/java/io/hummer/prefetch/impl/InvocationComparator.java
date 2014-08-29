@@ -62,7 +62,7 @@ public abstract class InvocationComparator {
 		ServiceInvocation wrapped;
 		XMLUtil xmlUtil = new XMLUtil();
 		public DefaultWrapper(ServiceInvocation inv) {
-			this.prefetchPossible = inv.prefetchPossible;
+//			this.prefetchPossible = inv.prefetchPossible;
 			this.serviceCall = inv.serviceCall;
 			this.serviceEPR = inv.serviceEPR;
 			this.wrapped = inv;

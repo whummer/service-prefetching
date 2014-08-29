@@ -18,6 +18,9 @@ public interface VehicleInfoService {
 		public StreamMediaResponse streamMedia(StreamMedia request) {
 			return new StreamMediaResponse();
 		}
+		public GetVicinityInfoResponse getVicinityInfo(GetVicinityInfo request) {
+			return new GetVicinityInfoResponse();
+		}
 	}
 
 	/* get traffic info */
@@ -39,4 +42,14 @@ public interface VehicleInfoService {
 	}
 	@SOAPBinding(parameterStyle=ParameterStyle.BARE)
 	StreamMediaResponse streamMedia(StreamMedia request);
+
+	/* vicinity info */
+	@XmlRootElement(namespace = NAMESPACE)
+	public static class GetVicinityInfo {
+	}
+	@XmlRootElement(namespace = NAMESPACE)
+	public static class GetVicinityInfoResponse {
+	}
+	@SOAPBinding(parameterStyle=ParameterStyle.BARE)
+	GetVicinityInfoResponse getVicinityInfo(GetVicinityInfo request);
 }

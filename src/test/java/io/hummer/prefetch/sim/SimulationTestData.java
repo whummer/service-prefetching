@@ -1,21 +1,21 @@
 package io.hummer.prefetch.sim;
 
-import io.hummer.prefetch.TestConstants;
 import io.hummer.prefetch.PrefetchingService.ServiceInvocation;
-import io.hummer.prefetch.client.ServiceInvocationBuilder;
+import io.hummer.prefetch.TestConstants;
 import io.hummer.prefetch.context.Context;
+import io.hummer.prefetch.context.ContextPredictor;
+import io.hummer.prefetch.context.Time;
+import io.hummer.prefetch.context.Path.PathPoint;
 import io.hummer.prefetch.impl.InvocationPredictor;
 import io.hummer.prefetch.impl.UsagePattern;
-import io.hummer.prefetch.impl.UsagePattern.ServiceUsage;
-import io.hummer.prefetch.sim.Constants;
 import io.hummer.prefetch.sim.VehicleSimulation.MovingEntities;
 import io.hummer.prefetch.sim.VehicleSimulation.MovingEntity;
-import io.hummer.prefetch.sim.VehicleSimulation.ServiceUsagePattern;
 import io.hummer.prefetch.sim.util.Util;
 import io.hummer.prefetch.sim.ws.VehicleInfoService;
 import io.hummer.prefetch.sim.ws.VehicleInfoService.VehicleInfoServiceImpl;
 import io.hummer.prefetch.ws.W3CEndpointReferenceUtils;
 import io.hummer.prefetch.ws.WSClient;
+import io.hummer.util.log.LogUtil;
 import io.hummer.util.xml.XMLUtil;
 
 import java.io.File;
@@ -28,15 +28,28 @@ import java.util.Map;
 import javax.xml.ws.Endpoint;
 import javax.xml.ws.wsaddressing.W3CEndpointReference;
 
+import org.apache.log4j.Logger;
 import org.w3c.dom.Element;
 
 public class SimulationTestData {
 
 	public static final String TRACE_FILE = System.getProperty("user.home")
 			+ "/Desktop/traces.txt";
-	// private static List<String> file = new LinkedList<>();
 	private static Map<String, List<String>> file = new HashMap<>();
 	private static XMLUtil xmlUtil = new XMLUtil();
+	private static final Logger LOG = LogUtil.getLogger();
+
+	public static class ServiceUsage {
+		public UsagePattern pattern;
+		public InvocationPredictor invocationPredictor;
+
+		public static UsagePattern combine(final ServiceUsage ... usages) {
+			UsagePattern[] patterns = new UsagePattern[usages.length];
+			for(int i = 0; i < usages.length; i ++) 
+				patterns[i] = usages[i].pattern;
+			return UsagePattern.combine(patterns);
+		}
+	}
 
 	public static MovingEntity getData(String id) {
 		List<String> lines = getLines(id);
@@ -78,8 +91,7 @@ public class SimulationTestData {
 		return Collections.emptyList();
 	}
 
-	public static MovingEntities getData() {
-		int numCars = 50;
+	public static MovingEntities getData(int fromCar, int toCar) {
 
 		String file = Constants.TMP_DIR + "/traces.xml.gz";
 		MovingEntities result = new MovingEntities();
@@ -93,9 +105,9 @@ public class SimulationTestData {
 			}
 		}
 		long t1, t2;
-		double timeBetweenPoints = 0;
+		double timeBetweenPointsTotal = 0;
 		double totalNumPoints = 0;
-		for (int i = 1; i <= numCars; i++) {
+		for (int i = fromCar; i <= toCar; i++) {
 			String id = "" + i;
 			if(!result.containsID(id)) {
 				System.out.println("Retrieving data for car " + id);
@@ -116,86 +128,109 @@ public class SimulationTestData {
 			MovingEntity ent = result.getEntity(id);
 			/* assert that path order is correct */
 			for(int j = 0; j < ent.path.size() - 1; j ++) {
-				timeBetweenPoints += ent.path.points.get(j + 1).time.time - 
-						ent.path.points.get(j).time.time;
-				if(ent.path.points.get(j).time.time > ent.path.points.get(j + 1).time.time) {
+				PathPoint p1 = ent.path.points.get(j);
+				PathPoint p2 = ent.path.points.get(j + 1);
+				double timeBetweenPoints = p2.time.time - p1.time.time;
+				timeBetweenPointsTotal += timeBetweenPoints;
+				if(p1.time.time > p2.time.time) {
 					throw new RuntimeException("non-chronological path order");
+				}
+				/* if the distance between two points is too big, end the path here. */
+				if(timeBetweenPoints > 60*15) {
+					LOG.info("Cutting path of vehicle " + id + " at time " + 
+							p1.time + ", distance: " + timeBetweenPoints);
+					ent.path.points = ent.path.points.subList(0, j + 1);
 				}
 			}
 			totalNumPoints += ent.path.size();
 		}
 		/* trim to number of cars */
-		while(result.entities.size() > numCars) {
-			result.entities.remove(result.entities.size() - 1);
+		for(MovingEntity ent : new LinkedList<>(result.entities)) {
+			if(Double.parseDouble(ent.id) < fromCar ||
+					Double.parseDouble(ent.id) > toCar)
+			result.entities.remove(ent);
 		}
 		//System.out.println(result.entities.get(0).path);
-		System.out.println("Average time between time points: " + (timeBetweenPoints / totalNumPoints));
+		System.out.println("Average time between time points: " + (timeBetweenPointsTotal / totalNumPoints));
 		return result;
 	}
 
 	static ServiceUsage getServiceUsage1() throws Exception {
-		Element body = WSClient.toElement(
+		String template = 
+				"<tns:getVicinityInfo " +
+				"xmlns:tns=\"" + VehicleInfoService.NAMESPACE + "\">" + 
+				"<lat>{{" + Context.ATTR_LOCATION_LAT + "}}</lat>" +
+				"<lon>{{" + Context.ATTR_LOCATION_LON + "}}</lon>" +
+				"</tns:getVicinityInfo>";
+		//UsagePattern usagePattern = UsagePattern.periodic(60, 100, 10);
+		ContextPredictor<Object> ctxPredict = new ContextPredictor.DefaultPredictor();
+		return constructServiceUsage(template, false, ctxPredict, 100);
+	}
+	static ServiceUsage getServiceUsage2() throws Exception {
+		String template = 
 				"<tns:getTrafficInfo " +
 				"xmlns:tns=\"" + VehicleInfoService.NAMESPACE + "\">" + 
 				"<lat>{{" + Context.ATTR_LOCATION_LAT + "}}</lat>" +
 				"<lon>{{" + Context.ATTR_LOCATION_LON + "}}</lon>" +
-				"</tns:getTrafficInfo>");
-		UsagePattern usagePattern = UsagePattern.periodic(60, 100, 10);
-		InvocationPredictor invPred = null;
-		return constructServiceUsage(body, false, usagePattern, invPred);
+				"</tns:getTrafficInfo>";
+		final double updateSeconds = 20;
+		double timeInterval = 10;
+		//UsagePattern usagePattern = UsagePattern.periodic(60, 100, 10);
+		ContextPredictor<Object> ctxPredict = new ContextPredictor.
+				DefaultPredictorWithUpdateInterval(updateSeconds, timeInterval);
+		return constructServiceUsage(template, false, ctxPredict, 100);
 	}
-	static ServiceUsage getServiceUsage2() throws Exception {
+	static ServiceUsage getServiceUsage3() throws Exception {
 		String template = 
 				"<tns:streamMedia " +
 				"xmlns:tns=\"" + VehicleInfoService.NAMESPACE + "\">" + 
 				"<mediaID>{{" + TestConstants.ATTR_MEDIA_ID + "}}</mediaID>" +
 				"<chunkID>{{" + TestConstants.ATTR_MEDIA_NEXT_CHUNK + "}}</chunkID>" +
 				"</tns:streamMedia>";
-		Element body = WSClient.toElement(template);
-		UsagePattern usagePattern = UsagePattern.constant(150);
-		InvocationPredictor invPred = null;
-		return constructServiceUsage(body, true, usagePattern, invPred);
+		final double updateSeconds = 20;
+		final double songLength = 180;
+		double timeInterval = 10;
+		ContextPredictor<Object> ctxPredict = new ContextPredictor.
+				DefaultPredictorWithUpdateInterval(updateSeconds, timeInterval) {
+			public Context<Object> predict(Context<Object> currentContext, Time t) {
+				Context<Object> context = super.predict(currentContext, t);
+				context.setContextAttribute(TestConstants.ATTR_MEDIA_ID, "song" + (int)(t.time / songLength));
+				context.setContextAttribute(TestConstants.ATTR_MEDIA_NEXT_CHUNK, 
+						"chunk" + (int)(((double)(t.time % songLength))/updateSeconds));
+				return context;
+			}
+		};
+//		UsagePattern usagePattern = UsagePattern.periodic(updateSeconds, 100, 10);
+		return constructServiceUsage(template, true, ctxPredict, 100);
 	}
 
-	static ServiceUsage constructServiceUsage(Element body, 
-			boolean prefetchPossible, UsagePattern usagePattern,
-			InvocationPredictor invocationPredictor) {
+	static ServiceUsage constructServiceUsage(String template, 
+			boolean prefetchPossible, 
+			//UsagePattern usagePattern,
+			ContextPredictor<Object> ctxPredictor, double invocationKbps) {
 		try {
+			Element body = WSClient.toElement(template);
 			ServiceInvocation tmp = new ServiceInvocation();
 			tmp.serviceCall = WSClient.createEnvelopeFromBody(body);
-			tmp.prefetchPossible = prefetchPossible;
+//			tmp.prefetchPossible = prefetchPossible;
 			tmp.serviceEPR = eprTrafficService;
-			ServiceInvocationBuilder b = new ServiceInvocationBuilder.
-					TemplateBasedInvocationBuilder(xmlUtil.toString(tmp));
-			b.prefetchPossible = tmp.prefetchPossible;
-			b.serviceEPR = tmp.serviceEPR;
+			double stepSize = 10;
+			InvocationPredictor invPred = new InvocationPredictor.
+					TemplateBasedInvocationPredictor(xmlUtil.toString(tmp), 
+							ctxPredictor, stepSize);
+			UsagePattern usagePattern = UsagePattern.predictionBased(invPred, null, invocationKbps);
+			
+//			ServiceInvocationBuilder b = new ServiceInvocationBuilder.
+//					TemplateBasedInvocationBuilder(xmlUtil.toString(tmp));
+//			b.prefetchPossible = tmp.prefetchPossible;
+//			b.serviceEPR = tmp.serviceEPR;
 			ServiceUsage use = new ServiceUsage();
-			use.invocation = b;
+//			use.invocation = b;
 			use.pattern = usagePattern;
-			use.invocationPredictor = invocationPredictor;
+			use.invocationPredictor = invPred;
 			return use;
 		} catch (Exception e) {
 			throw new RuntimeException(e);
-		}
-	}
-
-	static void addUsagePatterns(MovingEntities entities) throws Exception {
-
-		ServiceInvocation inv1 = new ServiceInvocation();
-		ServiceInvocation inv2 = new ServiceInvocation();
-		inv1.serviceEPR = eprTrafficService;
-		inv2.serviceEPR = eprTrafficService;
-		Element body = WSClient.toElement(
-				"<tns:getTrafficInfo " +
-				"xmlns:tns=\"" + VehicleInfoService.NAMESPACE + "\"/>");
-		inv1.serviceCall = WSClient.createEnvelopeFromBody(body);
-		inv2.serviceCall = WSClient.createEnvelopeFromBody(body);
-		for(MovingEntity ent : entities.entities) {
-			if(ent.usagePatterns == null) {
-				ent.usagePatterns = new LinkedList<>();
-			}
-			ent.usagePatterns.add(new ServiceUsagePattern(inv1, UsagePattern.periodic(60, 50, 4)));
-			ent.usagePatterns.add(new ServiceUsagePattern(inv2, UsagePattern.constant(20)));
 		}
 	}
 
@@ -206,10 +241,32 @@ public class SimulationTestData {
 		eprTrafficService = W3CEndpointReferenceUtils.
 				createEndpointReference(urlTrafficService);
 	}
-	static void deployTestServices(String url) {
+	static void deployTestServices(String url) throws Exception {
 		setServiceURL(url);
 		VehicleInfoService s = new VehicleInfoServiceImpl();
 		Endpoint.publish(urlTrafficService, s);
+		WSClient.cachedResponseObject = WSClient.createEnvelopeFromBody(
+				new XMLUtil().toElement("<result/>"));
 	}
+
+//	static void addUsagePatterns(MovingEntities entities) throws Exception {
+//
+//		ServiceInvocation inv1 = new ServiceInvocation();
+//		ServiceInvocation inv2 = new ServiceInvocation();
+//		inv1.serviceEPR = eprTrafficService;
+//		inv2.serviceEPR = eprTrafficService;
+//		Element body = WSClient.toElement(
+//				"<tns:getTrafficInfo " +
+//				"xmlns:tns=\"" + VehicleInfoService.NAMESPACE + "\"/>");
+//		inv1.serviceCall = WSClient.createEnvelopeFromBody(body);
+//		inv2.serviceCall = WSClient.createEnvelopeFromBody(body);
+//		for(MovingEntity ent : entities.entities) {
+//			if(ent.usagePatterns == null) {
+//				ent.usagePatterns = new LinkedList<>();
+//			}
+//			ent.usagePatterns.add(new ServiceUsagePattern(inv1, UsagePattern.periodic(60, 50, 4)));
+//			ent.usagePatterns.add(new ServiceUsagePattern(inv2, UsagePattern.constant(20)));
+//		}
+//	}
 
 }

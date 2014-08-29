@@ -7,21 +7,44 @@ import javax.xml.bind.annotation.XmlRootElement;
 
 /**
  * Represents time in a client's context.
+ * 
  * @author Waldemar Hummer
  */
 @XmlRootElement
 public class Time implements Comparable<Time>, Serializable {
 	private static final long serialVersionUID = 1L;
-	@XmlElement(name="t")
+
+	@XmlElement(name = "t")
 	public double time;
+
+	public Time() {
+	}
+
+	public Time(double time) {
+		this.time = time;
+	}
+
 	public int compareTo(Time o) {
 		return Double.valueOf(time).compareTo(o.time);
 	}
+
+	public boolean isBetween(Time fromTime, Time toTime, boolean includingToTime) {
+		if (includingToTime)
+			return time >= fromTime.time && time <= toTime.time;
+		else
+			return time >= fromTime.time && time < toTime.time;
+	}
+
+	public Time add(double timeDiff) {
+		return new Time(time + timeDiff);
+	}
+
 	@Override
 	public int hashCode() {
 		long temp = Double.doubleToLongBits(time);
 		return (int) (temp ^ (temp >>> 32));
 	}
+
 	@Override
 	public boolean equals(Object obj) {
 		if (this == obj)
@@ -36,6 +59,7 @@ public class Time implements Comparable<Time>, Serializable {
 			return false;
 		return true;
 	}
+
 	@Override
 	public String toString() {
 		return "T(" + time + ")";

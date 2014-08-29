@@ -37,9 +37,21 @@ import org.xml.sax.InputSource;
 
 import com.ibm.wsdl.Constants;
 
+/**
+ * Dynamic SOAP WS Client.
+ * @author Waldemar Hummer
+ */
 public class WSClient {
 
-	public static SOAPEnvelope invokePOST(W3CEndpointReference epr, SOAPEnvelope request) throws IOException {
+	// TODO remove
+	public static SOAPEnvelope cachedResponseObject;
+
+	public static SOAPEnvelope invokePOST(W3CEndpointReference epr, 
+			SOAPEnvelope request) throws IOException {
+		if(cachedResponseObject != null) {
+			return cachedResponseObject; // TODO
+		}
+
 		String endpointURL = W3CEndpointReferenceUtils.getAddress(epr);
 		URL url = new URL(endpointURL);
 		URLConnection conn = url.openConnection();

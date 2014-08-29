@@ -15,7 +15,7 @@ import io.hummer.util.xml.XMLUtil;
  * 
  * @author Waldemar Hummer
  */
-public abstract class ServiceInvocationBuilder extends ServiceInvocation {
+public abstract class ServiceInvocationBuilder /*extends ServiceInvocation*/ {
 
 	public abstract ServiceInvocation buildInvocation(Context<Object> context);
 	private static XMLUtil xmlUtil = new XMLUtil();
@@ -28,13 +28,22 @@ public abstract class ServiceInvocationBuilder extends ServiceInvocation {
 		public ServiceInvocation buildInvocation(Context<Object> context) {
 			String tmp = template;
 			for(String key: context.keySet()) {
-				tmp = tmp.replace("{{" + key + "}}", "" + context.getAttribute(key));
+				String placeholder = "{{" + key + "}}";
+				if(template.contains(placeholder)) {
+					if(context.getAttribute(key) == null) {
+						throw new RuntimeException("Context attribute '" + key + "' is null: " + context);
+					}
+					tmp = tmp.replace(placeholder, "" + context.getAttribute(key));
+				}
 			}
 			try {
 				return xmlUtil.toJaxbObject(ServiceInvocation.class, xmlUtil.toElement(tmp));
 			} catch (Exception e) {
 				throw new RuntimeException(e);
 			}
+		}
+		public String getTemplate() {
+			return template;
 		}
 	};
 }

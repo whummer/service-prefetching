@@ -24,7 +24,7 @@ public class InvocationConstructionTest {
 				"<lon>{{" + Context.ATTR_LOCATION_LON + "}}</lon>" +
 				"</tns:getTrafficInfo>");
 		tmp.serviceCall = WSClient.createEnvelopeFromBody(body);
-		tmp.prefetchPossible = true;
+//		tmp.prefetchPossible = true;
 		tmp.serviceEPR = W3CEndpointReferenceUtils.createEndpointReference("http://foo");
 		final String tmpl = xmlUtil.toString(tmp);
 		assertTrue(tmpl.contains("getTrafficInfo"));

@@ -12,6 +12,7 @@ import static org.junit.Assert.*;
 public class UsagePatternTest {
 
 	@Test
+	@SuppressWarnings("deprecation")
 	public void testPattern() throws Exception {
 		double errorDelta = 0.000000000001;
 		

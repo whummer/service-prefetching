@@ -21,6 +21,14 @@ public class NetworkQuality {
 	@XmlAttribute(name="g4")
 	public boolean _4g_lte = false;
 
+	public NetworkQuality() { }
+	public NetworkQuality(boolean allAvailable) {
+		_2g_gsm = allAvailable;
+		_3g_hspa = allAvailable;
+		_3g_umts = allAvailable;
+		_4g_lte = allAvailable;
+	}
+
 	public LinkSpeed getMaxSpeed() {
 		LinkSpeed result = new LinkSpeed();
 		if(_4g_lte) {

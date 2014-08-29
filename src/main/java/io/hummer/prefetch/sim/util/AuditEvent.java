@@ -15,6 +15,7 @@ public class AuditEvent {
 	public static final String E_INV_FAILED = "inv.failed";
 	public static final String E_PREFETCH_HIT = "prefetch.hit";
 	public static final String E_PREFETCH_MISS = "prefetch.miss";
+	public static final String E_UNUSED_RESULT = "prefetch.result.unused";
 
 	//private static final List<AuditEvent> events = new LinkedList<>();
 	private static final Map<EventListener,String> listeners = new HashMap<EventListener,String>();

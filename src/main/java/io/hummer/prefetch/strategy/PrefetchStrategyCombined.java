@@ -1,7 +1,7 @@
 package io.hummer.prefetch.strategy;
 
 import io.hummer.prefetch.PrefetchStrategy;
-import io.hummer.prefetch.impl.TimeClock;
+import io.hummer.prefetch.context.TimeClock;
 
 import java.util.LinkedList;
 import java.util.List;

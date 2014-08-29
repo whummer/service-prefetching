@@ -2,6 +2,9 @@ package io.hummer.prefetch.ws;
 
 import io.hummer.prefetch.impl.PrefetchingServiceImpl;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.annotation.adapters.XmlAdapter;
 import javax.xml.soap.SOAPEnvelope;
@@ -18,6 +21,9 @@ import org.w3c.dom.Element;
  */
 public class JaxbAdapter extends XmlAdapter<Object,Object> {
 
+	//private static final XMLUtil xmlUtil = new XMLUtil();
+	private static final Map<Class<?>,JAXBContext> contexts = new HashMap<>();
+
 	public Object marshal(Object o) throws Exception {
 		if(o == null) {
 			return null;
@@ -26,11 +32,16 @@ public class JaxbAdapter extends XmlAdapter<Object,Object> {
 			return WSClient.toElement(
 					WSClient.toString((SOAPEnvelope)o));
 		}
-		JAXBContext c = JAXBContext.newInstance(o.getClass());
+		Class<?> clazz = o.getClass();
+		if(!contexts.containsKey(clazz)) {
+			JAXBContext c = JAXBContext.newInstance(clazz);
+			contexts.put(clazz, c);
+		}
+		JAXBContext c = contexts.get(clazz);
 		DOMResult res = new DOMResult();
 		c.createMarshaller().marshal(o, res);
 		Element e = ((Document)res.getNode()).getDocumentElement();
-		e.setAttribute("class", o.getClass().getCanonicalName());
+		e.setAttribute("class", clazz.getCanonicalName());
 		return e;
 	}
 
@@ -45,7 +56,11 @@ public class JaxbAdapter extends XmlAdapter<Object,Object> {
 			if(!className.isEmpty()) {
 				clazz = Class.forName(className);
 			}
-			JAXBContext c = JAXBContext.newInstance(clazz);
+			if(!contexts.containsKey(clazz)) {
+				JAXBContext c = JAXBContext.newInstance(clazz);
+				contexts.put(clazz, c);
+			}
+			JAXBContext c = contexts.get(clazz);
 			Object res = c.createUnmarshaller().unmarshal(e);
 			return res;
 		}

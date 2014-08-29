@@ -1,8 +1,12 @@
 package io.hummer.prefetch.impl;
 
 import io.hummer.prefetch.PrefetchingService.ServiceInvocation;
+import io.hummer.prefetch.context.Context;
+import io.hummer.prefetch.context.Time;
+import io.hummer.util.coll.Pair;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.script.Bindings;
@@ -27,12 +31,6 @@ public class UsagePattern {
 	public String expression;
 
 	private static ScriptEngine eng = new RhinoScriptEngineFactory().getScriptEngine();
-
-	public static class ServiceUsage {
-		public ServiceInvocation invocation;
-		public UsagePattern pattern;
-		public InvocationPredictor invocationPredictor;
-	}
 
 	/**
 	 * Default c'tor, required by JAXB.
@@ -62,14 +60,35 @@ public class UsagePattern {
 		}
 	}
 
-	private static Object evalJS(String js, Bindings bindings) {
-		try {
-			return eng.eval(js, bindings);
-		} catch (Exception e) {
-			throw new RuntimeException(e);
+	public static class UsagePatternPredictionBased extends UsagePattern {
+		public Context<Object> context;
+		InvocationPredictor predictor;
+		double valueIfInvocationPredicted;
+		public UsagePatternPredictionBased(InvocationPredictor predictor, 
+				Context<Object> ctx, double valueIfInvocationPredicted) {
+			this.predictor = predictor;
+			this.context = ctx;
+			this.valueIfInvocationPredicted = valueIfInvocationPredicted;
+		}
+		public double predictUsage(double time) {
+			List<Pair<Context<Object>, ServiceInvocation>> invs = 
+					predictor.predictInvocations(context, new Time(time));
+			if(!invs.isEmpty()) {
+				return valueIfInvocationPredicted;
+			}
+			return 0;
+		}
+		public void setContext(Context<Object> context) {
+			this.context = context;
 		}
 	}
 
+	public static UsagePattern predictionBased(InvocationPredictor pred,
+			Context<Object> ctx, double valueIfInvocationPredicted) {
+		return new UsagePatternPredictionBased(pred, ctx, valueIfInvocationPredicted);
+	}
+
+	@Deprecated
 	public static UsagePattern periodic(
 			double repeatTimeSecs, double amount, double durationSecs) {
 		return new UsagePattern(
@@ -77,16 +96,11 @@ public class UsagePattern {
 				"x < " + repeatTimeSecs + " ? " + amount + " : " +
 				"0", repeatTimeSecs);
 	}
+	@Deprecated
 	public static UsagePattern constant(double amount) {
 		return new UsagePattern("" + amount);
 	}
 
-	public static UsagePattern combine(final ServiceUsage ... usages) {
-		UsagePattern[] patterns = new UsagePattern[usages.length];
-		for(int i = 0; i < usages.length; i ++) 
-			patterns[i] = usages[i].pattern;
-		return combine(patterns);
-	}
 	public static UsagePattern combine(final UsagePattern ... patterns) {
 		return new UsagePattern(null) {
 			@Override
@@ -97,6 +111,14 @@ public class UsagePattern {
 				return result;
 			}
 		};
+	}
+
+	private static Object evalJS(String js, Bindings bindings) {
+		try {
+			return eng.eval(js, bindings);
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	public static void main(String[] args) {

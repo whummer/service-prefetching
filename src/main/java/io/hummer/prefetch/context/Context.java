@@ -39,6 +39,10 @@ public class Context<T> {
 	private static class ContextEntry<T> {
 		T value;
 		long expiryDate;
+
+		public String toString() {
+			return "E[" + value + "]";
+		}
 	}
 
 	public boolean containsAttribute(String key) {
@@ -100,13 +104,21 @@ public class Context<T> {
 			}
 		}
 	}
-	
+
 	public Set<String> keySet() {
 		return entries.keySet();
 	}
 
 	public void addChangeListener(ContextChangeListener<T> listener) {
 		listeners.add(listener);
+	}
+
+	public boolean isNetworkUnavailable() {
+		Boolean avail = (Boolean)getAttribute(ATTR_NETWORK_AVAILABLE);
+		return avail != null && !avail;
+	}
+	public Time getTime() {
+		return (Time)getAttribute(Context.ATTR_TIME);
 	}
 
 	public Context<T> copy() {
@@ -119,6 +131,10 @@ public class Context<T> {
 			copy.listeners.addAll(listeners);
 		}
 		return copy;
+	}
+	@Override
+	public String toString() {
+		return "Context" + entries;
 	}
 
 }

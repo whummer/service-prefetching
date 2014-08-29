@@ -1,12 +1,13 @@
 package io.hummer.prefetch;
 
+import io.hummer.prefetch.impl.InvocationPredictor;
+
 import javax.jws.WebService;
 import javax.jws.soap.SOAPBinding;
 import javax.jws.soap.SOAPBinding.ParameterStyle;
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlAnyElement;
-import javax.xml.bind.annotation.XmlAttribute;
 import javax.xml.bind.annotation.XmlRootElement;
 import javax.xml.bind.annotation.XmlTransient;
 import javax.xml.bind.annotation.adapters.XmlAdapter;
@@ -34,7 +35,7 @@ public interface PrefetchingService {
 	@XmlRootElement
 	@XmlAccessorType(XmlAccessType.PUBLIC_MEMBER)
 	public static class PrefetchNotification {
-		public long subscriptionID;
+		public String subscriptionID;
 		@XmlJavaTypeAdapter(JaxbAdapter.class)
 		public ServiceInvocation serviceInvocation;
 		@XmlJavaTypeAdapter(JaxbAdapter.class)
@@ -63,12 +64,12 @@ public interface PrefetchingService {
 		 * The endpoint address of the service to prefetch.
 		 */
 		public W3CEndpointReference serviceEPR;
-		/**
-		 * Returns whether prefetching this 
-		 * invocation is possible or not.
-		 */
-		@XmlAttribute
-		public boolean prefetchPossible;
+//		/**
+//		 * Returns whether prefetching this 
+//		 * invocation is possible or not.
+//		 */
+//		@XmlAttribute
+//		public boolean prefetchPossible;
 		/**
 		 * The service call to perform.
 		 */
@@ -84,11 +85,16 @@ public interface PrefetchingService {
 		 * Should be null if this is a new request. 
 		 * Non-null to update existing subscription. 
 		 */
-		public Long subscriptionID;
+		public String subscriptionID;
+		///**
+		// * The service invocation to prefetch.
+		// */
+		//public ServiceInvocation invocation = new ServiceInvocation();
 		/**
-		 * The service invocation to prefetch.
+		 * The predictor responsible for creating future requests.
 		 */
-		public ServiceInvocation invocation = new ServiceInvocation();
+		@XmlTransient
+		public InvocationPredictor invocationPredictor;
 		/**
 		 * The remote endpoint address of the service to notify about  
 		 * prefetching results. May be null (for polling mode).
@@ -105,6 +111,11 @@ public interface PrefetchingService {
 		 */
 		@XmlJavaTypeAdapter(JaxbAdapter.class)
 		public PrefetchStrategy strategy;
+		/**
+		 * The importance of this service invocation; 
+		 * higher value means more important.
+		 */
+		public double lookIntoFutureSecs = 60*10;
 		/**
 		 * The importance of this service invocation; 
 		 * higher value means more important.
@@ -128,7 +139,7 @@ public interface PrefetchingService {
 	@XmlRootElement
 	@XmlAccessorType(XmlAccessType.PUBLIC_MEMBER)
 	public static class PrefetchResponse {
-		public long subscriptionID;
+		public String subscriptionID;
 	}
 
 	@SOAPBinding(parameterStyle = ParameterStyle.BARE)

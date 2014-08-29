@@ -1,16 +1,21 @@
 package io.hummer.prefetch.impl;
 
+import io.hummer.osm.util.Util;
 import io.hummer.prefetch.PrefetchingService;
-import io.hummer.prefetch.client.ServiceInvocationBuilder;
 import io.hummer.prefetch.context.Context;
-import io.hummer.prefetch.strategy.PrefetchStrategyPeriodic;
+import io.hummer.prefetch.context.Time;
+import io.hummer.prefetch.context.TimeClock;
 import io.hummer.prefetch.ws.W3CEndpointReferenceUtils;
 import io.hummer.prefetch.ws.WSClient;
+import io.hummer.util.coll.Pair;
+import io.hummer.util.xml.XMLUtil;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.List;
 import java.util.Map;
 import java.util.TimerTask;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -30,7 +35,7 @@ import org.w3c.dom.Element;
 )
 public class PrefetchingServiceImpl implements PrefetchingService {
 
-	protected final Map<Long,PrefetchSubscription> prefetchings = new ConcurrentHashMap<>();
+	protected final Map<String,PrefetchSubscription> prefetchings = new ConcurrentHashMap<>();
 	private final AtomicBoolean running = new AtomicBoolean(true);
 	private static final Logger LOG = Logger.getLogger(PrefetchingServiceImpl.class);
 
@@ -50,7 +55,7 @@ public class PrefetchingServiceImpl implements PrefetchingService {
 	 * Internal class which holds a prefetching subscription.
 	 */
 	protected static class PrefetchSubscription {
-		public long subscriptionID;
+		public String subscriptionID;
 		public PrefetchRequest request;
 	}
 
@@ -58,8 +63,8 @@ public class PrefetchingServiceImpl implements PrefetchingService {
 	 * Timer task to schedule prefetching requests.
 	 */
 	private class PrefetchTask extends TimerTask {
-		private long subscriptionID;
-		public PrefetchTask(long subscriptionID) {
+		private String subscriptionID;
+		public PrefetchTask(String subscriptionID) {
 			this.subscriptionID = subscriptionID;
 		}
 		public void run() {
@@ -76,7 +81,7 @@ public class PrefetchingServiceImpl implements PrefetchingService {
 		if(request.subscriptionID != null) {
 			s.subscriptionID = request.subscriptionID;
 		} else {
-			s.subscriptionID = System.currentTimeMillis();
+			s.subscriptionID = UUID.randomUUID().toString();
 			request.subscriptionID = s.subscriptionID;
 		}
 
@@ -93,7 +98,7 @@ public class PrefetchingServiceImpl implements PrefetchingService {
 	 * Calls to this method are triggered by the timer task of this class.
 	 * @param subscriptionID
 	 */
-	private void handleRequest(final long subscriptionID) {
+	private void handleRequest(final String subscriptionID) {
 		PrefetchSubscription pf = prefetchings.get(subscriptionID);
 		if(pf == null) {
 			LOG.warn("Subscription ID " + subscriptionID + " not found.");
@@ -107,11 +112,12 @@ public class PrefetchingServiceImpl implements PrefetchingService {
 	 * @param pf
 	 */
 	protected void handleRequest(PrefetchSubscription pf) {
-		//System.out.println(pf.request.strategy);
-		if(pf.request.strategy == null) {
-			pf.request.strategy = new PrefetchStrategyPeriodic();
-		}
+		LOG.debug("handle request: " + pf.request.invocationPredictor);
+//		if(pf.request.strategy == null) {
+//			pf.request.strategy = new PrefetchStrategyPeriodic();
+//		}
 		boolean doPrefetch = pf.request.strategy.doPrefetchNow(context);
+		LOG.debug("do prefetch (" + context.getTime() + "): " + doPrefetch);
 		if(doPrefetch) {
 			if(running.get()) {
 				Boolean hasNetwork = (Boolean)context.getAttribute(Context.ATTR_NETWORK_AVAILABLE);
@@ -119,9 +125,9 @@ public class PrefetchingServiceImpl implements PrefetchingService {
 					LOG.debug("We should prefetch now, but have no network connectivity...");
 					return;
 				}
-				String address = W3CEndpointReferenceUtils.getAddress(
-						pf.request.invocation.serviceEPR);
-				LOG.info("Initiate prefetching of service: " + address);
+//				String address = W3CEndpointReferenceUtils.getAddress(
+//						pf.request.invocation.serviceEPR);
+//				LOG.info("Initiate prefetching of service: " + address);
 				/* do prefetching */
 				doPrefetch(pf.request);
 				/* notify strategy */
@@ -141,13 +147,38 @@ public class PrefetchingServiceImpl implements PrefetchingService {
 	 * @param request
 	 */
 	private void doPrefetch(PrefetchRequest request) {
-		ServiceInvocation invocation = request.invocation;
+//		System.out.println("foo");
+		Time currentTime = (Time)context.getAttribute(Context.ATTR_TIME);
+		if(currentTime != null) {
+			List<Pair<Context<Object>, ServiceInvocation>> invs = request.
+					invocationPredictor.predictInvocations(context, currentTime, 
+							currentTime.add(request.lookIntoFutureSecs));
+//			System.out.println("predict: " + invs.size());
+
+			for(Pair<Context<Object>, ServiceInvocation> inv : invs) {
+				Context<Object> ctx = inv.getFirst();
+//				String TODO = (inv + " unavailable: " + ctx.isNetworkUnavailable());
+				//System.out.println(TODO);
+				if(ctx.isNetworkUnavailable()) {
+					LOG.debug("here unavailable: " + 
+							inv.getFirst().getAttribute(Context.ATTR_TIME) + 
+							" - req: " + Util.toString(inv.getSecond().serviceCall));
+					doPrefetch(request, inv.getSecond());
+				} else {
+					LOG.debug("here available: " + 
+							inv.getFirst().getAttribute(Context.ATTR_TIME) + 
+							" - req: " + Util.toString(inv.getSecond().serviceCall));
+				}
+			}
+		}
+	}
+	private void doPrefetch(PrefetchRequest request, ServiceInvocation invocation) {
 		try {
 			/* check if this is a dynamic invocation builder */
-			if(invocation instanceof ServiceInvocationBuilder) {
-				invocation = ((ServiceInvocationBuilder)invocation).
-						buildInvocation(context);
-			}
+//			if(invocation instanceof ServiceInvocationBuilder) {
+//				invocation = ((ServiceInvocationBuilder)invocation).
+//						buildInvocation(context);
+//			}
 
 			/* perform invocation */
 			SOAPEnvelope env = WSClient.toEnvelope(
@@ -167,7 +198,10 @@ public class PrefetchingServiceImpl implements PrefetchingService {
 				subscriber.notify(notification);
 			}
 			if(request.notifyLocal != null) {
-				LOG.info("Notifying listener of prefetch result: " + request.notifyLocal);
+				LOG.debug("Notifying listener of prefetch result for request: " + 
+						//request.notifyLocal
+						//new XMLUtil().toString(notification)
+						new XMLUtil().toString(env));
 				request.notifyLocal.notify(notification);
 			}
 			

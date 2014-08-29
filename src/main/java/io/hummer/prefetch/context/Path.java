@@ -34,6 +34,13 @@ public class Path {
 		@XmlElement(name="n")
 		public NetworkQuality cellNetworkCoverage;
 
+		public PathPoint() { }
+		public PathPoint(Time time, Location location, NetworkQuality net) {
+			this.time = time;
+			this.coordinates = location;
+			this.cellNetworkCoverage = net;
+		}
+
 		@Override
 		public String toString() {
 			return "P(" + coordinates + ":" + time + ")";
@@ -41,9 +48,13 @@ public class Path {
 	}
 
 	public PathPoint getLocationAtTime(double t) {
-		if((startTime < 0 || endTime < 0) && !points.isEmpty()) {
+		if(points.isEmpty()) {
+			return null;
+		}
+		if(startTime < 0 || endTime < 0) {
 			startTime = points.get(0).time.time;
 			endTime = points.get(points.size() - 1).time.time;
+			//System.out.println("start/end time: " + startTime + "-" + endTime);
 		}
 		if(t < startTime || t > endTime) {
 			return null;
@@ -52,8 +63,10 @@ public class Path {
 		for(PathPoint p : points) {
 			count ++;
 			if(count >= points.size()) {
-				return null; // when reaching the last position, this vehichle's route is over.
-			} else if(p.time.time > t) {
+				/* when reaching the last position, 
+				 * this vehichle's route is over. */
+				return null; 
+			} else if(p.time.time >= t) {
 				return p;
 			}
 		}
