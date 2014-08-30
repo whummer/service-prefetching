@@ -12,7 +12,7 @@ import javax.xml.bind.annotation.XmlSeeAlso;
  * @author Waldemar Hummer
  */
 @XmlRootElement
-@XmlSeeAlso(CellularCoverage.class)
+@XmlSeeAlso(NetworkQuality.class)
 public class TiledMapSwisscom extends TiledMapAbstract<NetworkQuality> {
 	@SuppressWarnings("all")
 	private static final long serialVersionUID = 1L;

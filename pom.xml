@@ -48,7 +48,7 @@
 		<dependency>
 			<groupId>io.hummer</groupId>
 			<artifactId>osm-util</artifactId>
-			<version>1.0.0</version>
+			<version>1.0.1</version>
 		</dependency>
 		<!-- JS scripting engine (for expressing service load patterns) -->
 		<dependency>

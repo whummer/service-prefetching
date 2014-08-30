@@ -2,10 +2,13 @@ package io.hummer.prefetch.sim.swisscom;
 
 import io.hummer.osm.model.Point;
 import io.hummer.osm.model.Tile;
+import io.hummer.prefetch.context.Location;
 import io.hummer.prefetch.context.NetworkQuality;
+import io.hummer.prefetch.context.Path.PathPoint;
 import io.hummer.prefetch.sim.Constants;
 import io.hummer.prefetch.sim.gmaps.GMapsCoordinatesConverter;
 import io.hummer.prefetch.sim.util.Util;
+import io.hummer.util.log.LogUtil;
 import io.hummer.util.xml.XMLUtil;
 
 import java.awt.image.BufferedImage;
@@ -13,8 +16,12 @@ import java.awt.image.Raster;
 import java.io.File;
 import java.io.Serializable;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.imageio.ImageIO;
+
+import org.apache.log4j.Logger;
 
 /**
  * Cellular network coverage util for Swisscom.
@@ -32,12 +39,21 @@ public class CellularCoverage implements Serializable {
 	public static final int DEFAULT_ZOOM = 18;
 	public static final int RETURNED_TILE_PIXEL_SIZE = 256;
 	public static final int FLUSH_INTERVAL = 20;
+	private static Logger LOG = LogUtil.getLogger();
+
+	/** user-defined overrides */
+	public static final Map<Location,NetworkQuality> OVERRIDES = new HashMap<Location, NetworkQuality>();
 
 	static {
 		loadCache();
 	}
 
 	public static NetworkQuality getCoverage(double lat, double lon) {
+		NetworkQuality override = getOverride(lat, lon);
+		if(override != null) {
+			return override;
+		}
+
 		int zoom = DEFAULT_ZOOM;
 		double v = io.hummer.osm.util.Util.getVicinity(zoom);
 		Tile t = new Tile(lon - v, lat + v, lon + v, lat - v);
@@ -62,6 +78,20 @@ public class CellularCoverage implements Serializable {
 	}
 
 	/* PRIVATE HELPER METHODS */
+
+	public static NetworkQuality getOverride(double lat, double lon) {
+		NetworkQuality q = OVERRIDES.get(new Location(lat, lon));
+		//LOG.info("Network quality override (" + OVERRIDES.size() + "): " + q);
+		return q;
+	}
+
+	public static void setOverrideIfExists(PathPoint p1) {
+		NetworkQuality q = getOverride(p1.coordinates.lat, p1.coordinates.lon);
+		if(q != null) {
+			LOG.debug("Network quality override: " + q);
+			p1.cellNetworkCoverage = q;
+		}
+	}
 
 	private static boolean get2gGsmCoverage(double lat, double lon) {
 		return getCoverage("gsm", DEFAULT_ZOOM, lat, lon);
@@ -142,4 +172,5 @@ public class CellularCoverage implements Serializable {
 		System.out.println(GMapsCoordinatesConverter.convertLatLonToPixelPoint(10, 46.101816214055304,8.69681517045248));
 		
 	}
+
 }

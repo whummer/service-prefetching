@@ -36,7 +36,7 @@ public class PrefetchingCapableClient
 	private Map<ServiceInvocation,PrefetchEntry> prefetchedResults = new HashMap<>();
 	private boolean deleteCachedResultsWhenReturned = false;
 	private double lastCleanupTime = 0;
-	private double deleteCachedResultsAfter = 60*10;
+	private double deleteCachedResultsAfter = 20*60; // TODO make configurable
 
 	private static class PrefetchEntry {
 		SOAPEnvelope result;
@@ -51,32 +51,31 @@ public class PrefetchingCapableClient
 	public PrefetchingCapableClient(Context<Object> context) {
 		super(context);
 		this.context = context;
-    	context.addChangeListener(this);
 	}
 
 	public SOAPEnvelope invoke(ServiceInvocation inv) throws IOException {
 		return invoke(inv, new InvocationComparator.DefaultComparator());
 	}
 	public SOAPEnvelope invoke(ServiceInvocation inv, InvocationComparator comp) throws IOException {
-		Time ctxTime = (Time)context.getAttribute(Context.ATTR_TIME);
+		//Time ctxTime = (Time)context.getAttribute(Context.ATTR_TIME);
+		double time = getTime();
 		try {
 			Boolean netAvail = (Boolean)context.getAttribute(Context.ATTR_NETWORK_AVAILABLE);
 			if(netAvail != null && netAvail) {
 				LOG.debug("Invocation: " + Util.toString(inv.serviceCall));
 				SOAPEnvelope res = performInvocation(inv);
-				AuditEvent.addEvent(ctxTime.time, AuditEvent.E_INV_SUCCESS);
+				AuditEvent.addEvent(time, AuditEvent.E_INV_SUCCESS);
 				return res;
 			}
 		} catch (IOException e) {
 			LOG.debug("Cannot invoke service.", e);
 			throw e;
 		}
-		AuditEvent.addEvent(ctxTime.time, AuditEvent.E_INV_FAILED);
+		AuditEvent.addEvent(time, AuditEvent.E_INV_FAILED);
 
 		ServiceInvocation existing = comp.matchOne(prefetchedResults.keySet(), inv);
 
 		if(existing == null) {
-			AuditEvent.addEvent(ctxTime.time, AuditEvent.E_PREFETCH_MISS);
 			if(!prefetchedResults.isEmpty())
 				LOG.debug("prefetchedResults: " + 
 						Util.toString(prefetchedResults.keySet().iterator().next()));
@@ -91,39 +90,39 @@ public class PrefetchingCapableClient
 							getSOAPBodyAsString((Element)existInv.serviceCall));
 				}
 			}
+			AuditEvent.addEvent(time, AuditEvent.E_PREFETCH_MISS);
 			throw new IllegalStateException(msg);
 		}
 		PrefetchEntry existingEntry = prefetchedResults.get(existing);
 		SOAPEnvelope result = existingEntry.result;
 		LOG.debug("Prefetch hit: " + Util.toString(existing.serviceCall));
-		AuditEvent.addEvent(ctxTime.time, AuditEvent.E_PREFETCH_HIT, 
+		AuditEvent.addEvent(time, AuditEvent.E_PREFETCH_HIT, 
 				MapBuilder.map(Context.ATTR_TIME, 
 						prefetchedResults.get(existing).prefetchTime));
 		existingEntry.accessTimes.add(TimeClock.now());
 		if(deleteCachedResultsWhenReturned) {
 			prefetchedResults.remove(existing);
 		}
-		cleanCacheIfNecessary(ctxTime);
+		cleanCacheIfNecessary(time);
 		return result;
 	}
 
-	private void cleanCacheIfNecessary(Time currentTime) {
-		double now = TimeClock.now();
+	private void cleanCacheIfNecessary(double currentTime) {
 		//System.out.println(lastCleanupTime + " - " + deleteCachedResultsAfter  + " -" + now);
-		if(lastCleanupTime + deleteCachedResultsAfter > now) {
+		if(lastCleanupTime + deleteCachedResultsAfter > currentTime) {
 			return;
 		}
 		for(ServiceInvocation i : new HashSet<>(prefetchedResults.keySet())) {
 			PrefetchEntry e = prefetchedResults.get(i);
-			if(e.prefetchTime < now - deleteCachedResultsAfter) {
+			if(e.prefetchTime < currentTime - deleteCachedResultsAfter) {
 				if(e.accessTimes.isEmpty()) {
-					AuditEvent.addEvent(currentTime.time, AuditEvent.E_UNUSED_RESULT);
+					AuditEvent.addEvent(currentTime, AuditEvent.E_UNUSED_RESULT);
 				}
 				LOG.debug("Cleanup client: " + e);
 				prefetchedResults.remove(i);
 			}
 		}
-		lastCleanupTime = now;
+		lastCleanupTime = currentTime;
 	}
 
 	@Override
@@ -140,22 +139,37 @@ public class PrefetchingCapableClient
 
 	@Override
 	public void notify(PrefetchNotification notification) {
+		if(LOG.isDebugEnabled())
+			LOG.debug("Got prefetch result for " + Util.toString(notification.serviceInvocation.serviceCall));
 		if(notification.result != null) {
 			ServiceInvocation existing = new InvocationComparator.DefaultComparator()
 				.matchOne(prefetchedResults.keySet(), notification.serviceInvocation);
 			PrefetchEntry entry = new PrefetchEntry();
 			entry.prefetchTime = TimeClock.now();
 			entry.result = notification.result;
-			if(existing == null) 
+			if(existing == null) {
 				prefetchedResults.put(notification.serviceInvocation, entry);
-			else
+			} else {
+				PrefetchEntry e = prefetchedResults.get(existing);
+				if(e.accessTimes.isEmpty()) {
+					AuditEvent.addEvent(getTime(), AuditEvent.E_UNUSED_RESULT);
+				}
 				prefetchedResults.put(existing, entry);
+			}
 			//System.out.println("prefetchedResults: " + prefetchedResults);
 		}
 	}
 
+	private double getTime() {
+		Time ctxTime = (Time)context.getAttribute(Context.ATTR_TIME);
+		if(ctxTime != null) {
+			return ctxTime.time;
+		}
+		return TimeClock.now();
+	}
+
 	public void onContextChanged(Map<String,Object> attrs, Map<String,Object> oldAttrs) {
-		LOG.debug("Context has changed. Checking if we need to prefetch.");
+		LOG.trace("Context has changed. Checking if we need to prefetch.");
 		for(PrefetchSubscription sub : prefetchings.values()) {
 			handleRequest(sub);
 		}

@@ -1,12 +1,12 @@
 package io.hummer.prefetch.context;
 
+import io.hummer.prefetch.context.Path.PathPoint;
+import io.hummer.util.log.LogUtil;
+
 import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.log4j.Logger;
-
-import io.hummer.prefetch.context.Path.PathPoint;
-import io.hummer.util.log.LogUtil;
 
 /**
  * "Predicts" and generates future instances of the context information.
@@ -48,7 +48,7 @@ public interface ContextPredictor<T> {
 					copy.setContextAttribute(Context.ATTR_LOCATION_LAT, current.coordinates.lat);
 					copy.setContextAttribute(Context.ATTR_LOCATION_LON, current.coordinates.lon);
 					copy.setContextAttribute(Context.ATTR_NETWORK_AVAILABLE, 
-							current.cellNetworkCoverage.hasAnyCoverage());
+							current.cellNetworkCoverage.hasSufficientCoverage());
 				} else {
 					LOG.warn("Cannot find location at time " + t + " in path " + path.points);
 					copy.setContextAttribute(Context.ATTR_LOCATION, null);
@@ -68,7 +68,7 @@ public interface ContextPredictor<T> {
 			for(Time t : predictContextChanges(currentContext, fromTime, toTime)) {
 				result.add(predict(currentContext, t));
 			}
-			//System.out.println("predicted contexts: " + result);
+			LOG.trace("predicted contexts from " + fromTime + " to " + toTime + ": " + result.size());
 			return result;
 		}
 
@@ -83,7 +83,7 @@ public interface ContextPredictor<T> {
 					}
 				}
 			}
-			LOG.debug("times ContextChangeBased: " + fromTime + "-" + toTime + ": " + result);
+			if(LOG.isDebugEnabled()) LOG.debug("times ContextChangeBased: " + fromTime + "-" + toTime + ": " + result);
 			return result;
 		}
 	}
@@ -100,15 +100,26 @@ public interface ContextPredictor<T> {
 		public List<Time> predictContextChanges(Context<Object> currentContext,
 				Time fromTime, Time toTime) {
 			List<Time> result = new LinkedList<Time>();
+			Path path = (Path)currentContext.getAttribute(Context.ATTR_PATH);
+			double lastPathTime = -1;
+			if(path != null) {
+				if(path.points.isEmpty()) {
+					return result;
+				}
+				lastPathTime = path.points.get(path.size() - 1).time.time;
+			}
 			double start = (double)((int)(fromTime.time / updateSeconds)) * updateSeconds;
 			/* note: t < toTime.time is essential here, do NOT use t <= toTime.time */
 			for(double t = start; t < toTime.time; t += updateSeconds) {
+				if(lastPathTime >= 0 && t > lastPathTime) {
+					break;
+				}
 				if(t >= fromTime.time) {
 					result.add(new Time(t));
 					//result.add(new Time(t + timeInterval)); // TODO revise!
 				}
 			}
-			LOG.debug("times UpdateInterval: " + fromTime + "-" + toTime + ": " + result);
+			if(LOG.isDebugEnabled()) LOG.debug("times UpdateInterval: " + fromTime + "-" + toTime + ": " + result);
 			return result;
 		}
 	}

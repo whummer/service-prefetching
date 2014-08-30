@@ -98,7 +98,7 @@ public class VehicleSimulation {
 			List<NetworkOutagePath> result = new LinkedList<>();
 			NetworkOutagePath tmp = null;
 			for(PathPoint p : path.points) {
-				if(!p.cellNetworkCoverage.hasAnyCoverage()) {
+				if(!p.cellNetworkCoverage.hasSufficientCoverage()) {
 					if(tmp == null)
 						tmp = new NetworkOutagePath();
 					tmp.path.add(p);

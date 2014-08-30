@@ -39,10 +39,17 @@ public class PrefetchStrategyContextBased extends PrefetchStrategy {
 	public PrefetchStrategyContextBased(
 			UsagePattern usage, 
 			int timeStepsLookIntoFuture,
+			double timeStepDuration, String id) {
+		this(usage, timeStepsLookIntoFuture, timeStepDuration);
+		this.id = id;
+	}
+	public PrefetchStrategyContextBased(
+			UsagePattern usage, 
+			int timeStepsLookIntoFuture,
 			double timeStepDuration) {
 		this.usagePattern = usage;
-		this.timeStepDuration = timeStepDuration;
 		this.timeStepsLookIntoFuture = timeStepsLookIntoFuture;
+		this.timeStepDuration = timeStepDuration;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -76,20 +83,22 @@ public class PrefetchStrategyContextBased extends PrefetchStrategy {
 				
 //				double timeThen = pt.time.time;
 				
-				if(LOG.isDebugEnabled()) 
-					LOG.debug("time " + pt.time.time + " (" + t + ") coverage: " + 
-						pt.cellNetworkCoverage.hasAnyCoverage() + 
+				if(LOG.isTraceEnabled()) {
+					LOG.trace("time " + pt.time.time + " (" + t + ") coverage : " + 
+						pt.cellNetworkCoverage.hasSufficientCoverage() + 
 						", we need: " + usagePattern.predictUsage(t));
+				}
 //				LOG.info("doPrefetchNow 1: " + pt.cellNetworkCoverage.hasAnyCoverage());
 
 				/* if there is no network ... */
 				try {
-					if(!pt.cellNetworkCoverage.hasAnyCoverage()) {
-						/* ... and if we need a network */
-						double usage = usagePattern.predictUsage(t);
-						if(usage > 0) {
+					if(!pt.cellNetworkCoverage.hasSufficientCoverage()) {
+						/* ... and if we need a network 
+						 * IMPORTANT: Do NOT add the second check (usage > 0). */
+						//double usage = usagePattern.predictUsage(t);
+						//if(usage > 0) {
 							return true;
-						}
+						//}
 					}
 				} catch (Exception e) {
 					System.out.println(new XMLUtil().toString(pt));

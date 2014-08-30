@@ -64,7 +64,7 @@ public abstract class InvocationPredictor {
 			for(Context<Object> ctx : contextPredictor.predictContexts(currentContext, fromTime, toTime)) {
 				result.add(new Pair<>(ctx, builder.buildInvocation(ctx)));
 			}
-			LOG.debug("predicted [" + fromTime.time + "," + 
+			LOG.trace("predicted [" + fromTime.time + "," + 
 					toTime.time + "]: " + result.size());
 			return result;
 		}

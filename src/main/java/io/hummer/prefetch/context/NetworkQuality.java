@@ -47,8 +47,12 @@ public class NetworkQuality {
 		return result;
 	}
 
-	public boolean hasAnyCoverage() {
-		return _4g_lte || _3g_hspa || _3g_umts || _2g_gsm;
+//	public boolean hasAnyCoverage() {
+//		return _4g_lte || _3g_hspa || _3g_umts || _2g_gsm;
+//	}
+
+	public boolean hasSufficientCoverage() {
+		return _4g_lte || _3g_hspa || _3g_umts;
 	}
 
 	@Override

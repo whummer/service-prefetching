@@ -1,5 +1,7 @@
 package io.hummer.prefetch.context;
 
+import io.hummer.util.log.LogUtil;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -9,6 +11,8 @@ import java.util.Map.Entry;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicReference;
+
+import org.apache.log4j.Logger;
 
 /**
  * Used to handle different notions of time, 
@@ -27,8 +31,9 @@ public abstract class TimeClock {
 		return instance.get().getTime();
 	}
 	public static void setTime(double time) {
-		if(!(instance.get() instanceof TimeClockManual))
+		if(!(instance.get() instanceof TimeClockManual)) {
 			instance.set(new TimeClockManual(time));
+		}
 		TimeClockManual t = (TimeClockManual)instance.get();
 		t.setTheTime(time);
 		t.runTasks();
@@ -52,10 +57,11 @@ public abstract class TimeClock {
 		}
 	}
 	public static class TimeClockManual extends TimeClock {
-		
+
+		static final Logger LOG = LogUtil.getLogger();
 		double time;
 		final Map<TimerTask,Double> tasks = new HashMap<TimerTask,Double>();
-		
+
 		public TimeClockManual(double time) {
 			this.time = time;
 		}
@@ -68,14 +74,16 @@ public abstract class TimeClock {
 		}
 		@Override
 		void scheduleTask(TimerTask task, double delaySecs) {
+			LOG.debug("Scheduling task (delay " + delaySecs + ", tasks: " + tasks.size() + "): " + task);
 			tasks.put(task, now() + delaySecs);
 		}
 		private void runTasks() {
 			double now = now();
 			for(Entry<TimerTask,Double> e : new HashSet<>(tasks.entrySet())) {
-				if(e.getValue() >= now) {
+				if(now >= e.getValue()) {
 					tasks.remove(e.getKey());
 					//GlobalThreadPool.execute(e.getKey());
+					LOG.debug("Running scheduled task (time: " + e.getValue() + ", now: " + now + "): " + e.getKey());
 					e.getKey().run();
 				}
 			}

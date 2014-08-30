@@ -8,6 +8,11 @@ package io.hummer.prefetch;
 public abstract class PrefetchStrategy {
 
 	/**
+	 * Not required from a functional perspective. Mainly used for testing.
+	 */
+	public String id;
+
+	/**
 	 * Last time that prefetching has been done.
 	 */
 	protected double lastTime;

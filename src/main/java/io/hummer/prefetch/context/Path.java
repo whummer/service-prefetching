@@ -43,7 +43,8 @@ public class Path {
 
 		@Override
 		public String toString() {
-			return "P(" + coordinates + ":" + time + ")";
+			boolean hasNet = cellNetworkCoverage != null ? cellNetworkCoverage.hasSufficientCoverage() : false;
+			return "P(" + coordinates + ":N(" + hasNet + "):" + time + ")";
 		}
 	}
 
@@ -61,12 +62,13 @@ public class Path {
 		}
 		int count = 0;
 		for(PathPoint p : points) {
-			count ++;
-			if(count >= points.size()) {
-				/* when reaching the last position, 
-				 * this vehichle's route is over. */
-				return null; 
-			} else if(p.time.time >= t) {
+//			count ++;
+//			if(count >= points.size()) {
+//				/* when reaching the last position, 
+//				 * this vehichle's route is over. */
+//				return null; 
+//			} else 
+			if(p.time.time >= t) {
 				return p;
 			}
 		}

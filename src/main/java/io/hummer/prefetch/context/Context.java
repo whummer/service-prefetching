@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import io.hummer.prefetch.context.Path.PathPoint;
 import io.hummer.util.coll.CollectionsUtil.MapBuilder;
 
 /**
@@ -132,6 +133,28 @@ public class Context<T> {
 		}
 		return copy;
 	}
+
+
+	public static Map<String, Object> generateUpdates(double time, Path path) {
+		return generateUpdates(time, path, path.getLocationAtTime(time));
+	}
+	public static Map<String, Object> generateUpdates(double time, Path path, PathPoint location) {
+		Map<String,Object> ctxUpdates = new HashMap<>();
+		/* set current time */
+		ctxUpdates.put(Context.ATTR_TIME, new Time(time));
+		/* set predicted path */
+		ctxUpdates.put(Context.ATTR_PATH, path);
+		ctxUpdates.put(Context.ATTR_FUTURE_PATH, path.getFuturePathAt(time));
+		/* set current location */
+		ctxUpdates.put(Context.ATTR_LOCATION, location);
+		ctxUpdates.put(Context.ATTR_LOCATION_LAT, location.coordinates.lat);
+		ctxUpdates.put(Context.ATTR_LOCATION_LON, location.coordinates.lon);
+		/* set network availability */
+		boolean netAvail = location.cellNetworkCoverage.hasSufficientCoverage();
+		ctxUpdates.put(Context.ATTR_NETWORK_AVAILABLE, netAvail);
+		return ctxUpdates;
+	}
+
 	@Override
 	public String toString() {
 		return "Context" + entries;

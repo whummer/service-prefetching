@@ -4,12 +4,15 @@ import io.hummer.prefetch.PrefetchingService.ServiceInvocation;
 import io.hummer.prefetch.TestConstants;
 import io.hummer.prefetch.context.Context;
 import io.hummer.prefetch.context.ContextPredictor;
+import io.hummer.prefetch.context.Location;
+import io.hummer.prefetch.context.NetworkQuality;
 import io.hummer.prefetch.context.Time;
 import io.hummer.prefetch.context.Path.PathPoint;
 import io.hummer.prefetch.impl.InvocationPredictor;
 import io.hummer.prefetch.impl.UsagePattern;
 import io.hummer.prefetch.sim.VehicleSimulation.MovingEntities;
 import io.hummer.prefetch.sim.VehicleSimulation.MovingEntity;
+import io.hummer.prefetch.sim.swisscom.CellularCoverage;
 import io.hummer.prefetch.sim.util.Util;
 import io.hummer.prefetch.sim.ws.VehicleInfoService;
 import io.hummer.prefetch.sim.ws.VehicleInfoService.VehicleInfoServiceImpl;
@@ -91,7 +94,33 @@ public class SimulationTestData {
 		return Collections.emptyList();
 	}
 
+	static void setTunnelOverrides() {
+		//46.58232725478691,8.56863682841651
+		NetworkQuality q1 = new NetworkQuality(false);
+		/* Gotthard Tunnel: */
+		CellularCoverage.OVERRIDES.put(
+				new Location(46.58232725478691,8.56863682841651), q1);
+		CellularCoverage.OVERRIDES.put(
+				new Location(46.61630210986323,8.578053356802688), q1);
+		CellularCoverage.OVERRIDES.put(
+				new Location(46.62514880956553,8.580507305472487), q1);
+		CellularCoverage.OVERRIDES.put(
+				new Location(46.63688960569387,8.58376530161051), q1);
+		CellularCoverage.OVERRIDES.put(
+				new Location(46.649437172968,8.587248769273087), q1);
+		CellularCoverage.OVERRIDES.put(
+				new Location(46.65707885240678,8.58937106896852), q1);
+		CellularCoverage.OVERRIDES.put(
+				new Location(46.5434865755487,8.596293438544723), q1);
+		CellularCoverage.OVERRIDES.put(
+				new Location(46.53798057183448,8.600210400527107), q1);
+		CellularCoverage.OVERRIDES.put(
+				new Location(46.53485189855097,8.602435735412291), q1);
+		
+	}
 	public static MovingEntities getData(int fromCar, int toCar) {
+
+		setTunnelOverrides();
 
 		String file = Constants.TMP_DIR + "/traces.xml.gz";
 		MovingEntities result = new MovingEntities();
@@ -115,7 +144,7 @@ public class SimulationTestData {
 				MovingEntity ent = getData(id);
 				result.entities.add(ent);
 				t2 = System.currentTimeMillis();
-				System.out.println("adding entity " + i + ": " + 
+				LOG.info("adding entity " + i + ": " + 
 						ent.path.size() + " points - " + Math.abs(t2 - t1) + "ms");
 				ent.getNetworkOutages();
 				try {
@@ -127,21 +156,77 @@ public class SimulationTestData {
 			}
 			MovingEntity ent = result.getEntity(id);
 			/* assert that path order is correct */
-			for(int j = 0; j < ent.path.size() - 1; j ++) {
+			PathPoint ptNoNetFirst = null;
+			PathPoint ptNoNetLast = null;
+			double maxDistance = 60*10;
+			for(int j = 0; j < ent.path.size(); j ++) {
 				PathPoint p1 = ent.path.points.get(j);
-				PathPoint p2 = ent.path.points.get(j + 1);
-				double timeBetweenPoints = p2.time.time - p1.time.time;
-				timeBetweenPointsTotal += timeBetweenPoints;
-				if(p1.time.time > p2.time.time) {
-					throw new RuntimeException("non-chronological path order");
+				CellularCoverage.setOverrideIfExists(p1);
+//				if(p1.cellNetworkCoverage._2g_gsm && !p1.cellNetworkCoverage._3g_hspa && !
+//						p1.cellNetworkCoverage._3g_umts && !p1.cellNetworkCoverage._4g_lte) 
+//					System.out.println("ONLY 2G!!");
+				if(j < ent.path.size() - 1) {
+					PathPoint p2 = ent.path.points.get(j + 1);
+					double timeBetweenPoints = p2.time.time - p1.time.time;
+					timeBetweenPointsTotal += timeBetweenPoints;
+					if(p1.time.time > p2.time.time) {
+						throw new RuntimeException("non-chronological path order");
+					}
+					/* if the distance between two points is too big, end the path here. */
+					if(timeBetweenPoints > maxDistance) {
+						LOG.info("Cutting path of vehicle " + id + " at time " + 
+								p1.time + ", distance: " + timeBetweenPoints);
+						ent.path.points = ent.path.points.subList(0, j + 1);
+					}
 				}
-				/* if the distance between two points is too big, end the path here. */
-				if(timeBetweenPoints > 60*15) {
-					LOG.info("Cutting path of vehicle " + id + " at time " + 
-							p1.time + ", distance: " + timeBetweenPoints);
-					ent.path.points = ent.path.points.subList(0, j + 1);
+				/* check for connectivity */
+				if(!p1.cellNetworkCoverage.hasSufficientCoverage()) {
+					if(j <= 1) {
+						/* the first point (and one before that) should always 
+						 * have connectivity (for simulation purposes) */
+						NetworkQuality goodNetworkCoverage = new NetworkQuality(true);
+						if(j == 0) {
+							p1.cellNetworkCoverage = goodNetworkCoverage;
+							LOG.info("Setting net coverage to true: " + p1.time + " - " + p1.coordinates);
+						} else if(j == 1) {
+							PathPoint pNew = new PathPoint(p1.time.add(-10.0), p1.coordinates, goodNetworkCoverage);
+							ent.path.points.add(0, pNew);
+							j ++;
+						}
+					}
+					if(ptNoNetFirst == null) {
+						if(j > 0) {
+							LOG.debug(ent.path.points.get(j - 1).coordinates + ": " + 
+									CellularCoverage.getCoverage(46.552472293321905,8.589899093722023));
+						}
+						ptNoNetFirst = p1;
+					}
+					ptNoNetLast = p1;
+				}
+				if(p1.cellNetworkCoverage.hasSufficientCoverage() || j >= ent.path.size() - 1){
+					if(ptNoNetLast != null) {
+						double time = ptNoNetLast.time.time - ptNoNetFirst.time.time;
+						LOG.info("Car " + id + ": net down for " + time + "secs at " + 
+								ptNoNetFirst.time.time + ": " + ptNoNetFirst.coordinates + 
+								" to " + ptNoNetLast.coordinates);
+						if(time > maxDistance) {
+							int index = ent.path.points.indexOf(ptNoNetFirst);
+							LOG.info("Offline for too long. Cutting path of vehicle " + id + 
+									" at time " + ptNoNetFirst.time + ", index " + index);
+							ent.path.points = ent.path.points.subList(0, index);
+							break;
+						}
+						//LOG.debug(ent.path.points.get(j + 1).coordinates);
+					}
+					ptNoNetFirst = null;
+					ptNoNetLast = null;
 				}
 			}
+
+			if(fromCar == toCar) { // TODO
+				System.out.println(ent.path.points);
+			}
+
 			totalNumPoints += ent.path.size();
 		}
 		/* trim to number of cars */
@@ -151,7 +236,7 @@ public class SimulationTestData {
 			result.entities.remove(ent);
 		}
 		//System.out.println(result.entities.get(0).path);
-		System.out.println("Average time between time points: " + (timeBetweenPointsTotal / totalNumPoints));
+		LOG.info("Average time between time points: " + (timeBetweenPointsTotal / totalNumPoints));
 		return result;
 	}
 
@@ -173,12 +258,11 @@ public class SimulationTestData {
 				"<lat>{{" + Context.ATTR_LOCATION_LAT + "}}</lat>" +
 				"<lon>{{" + Context.ATTR_LOCATION_LON + "}}</lon>" +
 				"</tns:getTrafficInfo>";
-		final double updateSeconds = 20;
+		final double updateSeconds = 60;
 		double timeInterval = 10;
-		//UsagePattern usagePattern = UsagePattern.periodic(60, 100, 10);
 		ContextPredictor<Object> ctxPredict = new ContextPredictor.
 				DefaultPredictorWithUpdateInterval(updateSeconds, timeInterval);
-		return constructServiceUsage(template, false, ctxPredict, 100);
+		return constructServiceUsage(template, false, ctxPredict, 50);
 	}
 	static ServiceUsage getServiceUsage3() throws Exception {
 		String template = 
@@ -200,8 +284,43 @@ public class SimulationTestData {
 				return context;
 			}
 		};
-//		UsagePattern usagePattern = UsagePattern.periodic(updateSeconds, 100, 10);
-		return constructServiceUsage(template, true, ctxPredict, 100);
+		return constructServiceUsage(template, true, ctxPredict, 150);
+	}
+	static ServiceUsage getServiceUsage4() throws Exception {
+		String template = 
+				"<tns:reroute " +
+				"xmlns:tns=\"" + VehicleInfoService.NAMESPACE + "\">" + 
+				"<lat>{{" + Context.ATTR_LOCATION_LAT + "}}</lat>" +
+				"<lon>{{" + Context.ATTR_LOCATION_LON + "}}</lon>" +
+				"</tns:reroute>";
+
+		final double updateSeconds = 300;
+		double timeInterval = 10;
+		ContextPredictor<Object> ctxPredict = new ContextPredictor.
+				DefaultPredictorWithUpdateInterval(updateSeconds, timeInterval);
+		return constructServiceUsage(template, false, ctxPredict, 75);
+	}
+	static ServiceUsage getServiceUsage5() throws Exception {
+		String template = 
+				"<tns:getMail " +
+				"xmlns:tns=\"" + VehicleInfoService.NAMESPACE + "\">" + 
+				"</tns:getMail>";
+		final double updateSeconds = 180;
+		double timeInterval = 10;
+		ContextPredictor<Object> ctxPredict = new ContextPredictor.
+				DefaultPredictorWithUpdateInterval(updateSeconds, timeInterval);
+		return constructServiceUsage(template, false, ctxPredict, 50);
+	}
+	static ServiceUsage getServiceUsage6() throws Exception {
+		String template = 
+				"<tns:syncUpdates " +
+				"xmlns:tns=\"" + VehicleInfoService.NAMESPACE + "\">" + 
+				"</tns:syncUpdates>";
+		final double updateSeconds = 600;
+		double timeInterval = 10;
+		ContextPredictor<Object> ctxPredict = new ContextPredictor.
+				DefaultPredictorWithUpdateInterval(updateSeconds, timeInterval);
+		return constructServiceUsage(template, false, ctxPredict, 100);
 	}
 
 	static ServiceUsage constructServiceUsage(String template, 

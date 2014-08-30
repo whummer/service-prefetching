@@ -2,10 +2,13 @@ package io.hummer.prefetch.strategy;
 
 import io.hummer.prefetch.PrefetchStrategy;
 import io.hummer.prefetch.context.TimeClock;
+import io.hummer.util.log.LogUtil;
 
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlRootElement;
+
+import org.apache.log4j.Logger;
 
 /**
  * Periodic pre-fetching strategy.
@@ -14,6 +17,8 @@ import javax.xml.bind.annotation.XmlRootElement;
 @XmlRootElement(name="strategy")
 @XmlAccessorType(XmlAccessType.PUBLIC_MEMBER)
 public class PrefetchStrategyPeriodic extends PrefetchStrategy {
+
+	static final Logger LOG = LogUtil.getLogger();
 
 	/**
 	 * Default timeout (5 minutes).
@@ -32,9 +37,17 @@ public class PrefetchStrategyPeriodic extends PrefetchStrategy {
 		this.timeoutSecs = timeoutSecs;
 		this.lastTime = 0;
 	}
+	public PrefetchStrategyPeriodic(double timeoutSecs, String id) {
+		this(timeoutSecs);
+		this.id = id;
+	}
 
 	public boolean doPrefetchNow(Object context) {
-		return TimeClock.now() >= lastTime + timeoutSecs;
+		boolean doPrefetch = TimeClock.now() >= lastTime + timeoutSecs;
+		//Thread.dumpStack();
+		LOG.debug("PrefStrPer doPrefetchNow (" + TimeClock.now() + " - " + 
+				lastTime + " - " + timeoutSecs + "): " + doPrefetch);
+		return doPrefetch;
 	}
 
 	public Double getNextAskTimeDelayInSecs() {
@@ -43,5 +56,9 @@ public class PrefetchStrategyPeriodic extends PrefetchStrategy {
 
 	public void notifyPrefetchPerformed() {
 		lastTime = TimeClock.now();
+	}
+
+	public double getTimeoutSecs() {
+		return timeoutSecs;
 	}
 }

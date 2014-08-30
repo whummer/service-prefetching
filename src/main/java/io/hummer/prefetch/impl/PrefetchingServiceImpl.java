@@ -1,6 +1,5 @@
 package io.hummer.prefetch.impl;
 
-import io.hummer.osm.util.Util;
 import io.hummer.prefetch.PrefetchingService;
 import io.hummer.prefetch.context.Context;
 import io.hummer.prefetch.context.Time;
@@ -38,6 +37,7 @@ public class PrefetchingServiceImpl implements PrefetchingService {
 	protected final Map<String,PrefetchSubscription> prefetchings = new ConcurrentHashMap<>();
 	private final AtomicBoolean running = new AtomicBoolean(true);
 	private static final Logger LOG = Logger.getLogger(PrefetchingServiceImpl.class);
+	private static final XMLUtil xmlUtil = new XMLUtil();
 
     private Context<Object> context;
 
@@ -112,7 +112,7 @@ public class PrefetchingServiceImpl implements PrefetchingService {
 	 * @param pf
 	 */
 	protected void handleRequest(PrefetchSubscription pf) {
-		LOG.debug("handle request: " + pf.request.invocationPredictor);
+		LOG.trace("handle request: " + pf.request.invocationPredictor);
 //		if(pf.request.strategy == null) {
 //			pf.request.strategy = new PrefetchStrategyPeriodic();
 //		}
@@ -132,12 +132,15 @@ public class PrefetchingServiceImpl implements PrefetchingService {
 				doPrefetch(pf.request);
 				/* notify strategy */
 				pf.request.strategy.notifyPrefetchPerformed();
-				/* schedule next prefetching */
-				Double delay = pf.request.strategy.getNextAskTimeDelayInSecs();
-				if(delay != null && delay > 0) {
-					//timer.schedule(new PrefetchTask(pf.subscriptionID), delay);
-					TimeClock.schedule(new PrefetchTask(pf.subscriptionID), delay);
-				}
+			}
+		}
+		if(running.get()) {
+			/* schedule next prefetching */
+			Double delay = pf.request.strategy.getNextAskTimeDelayInSecs();
+			if(delay != null && delay > 0) {
+				//timer.schedule(new PrefetchTask(pf.subscriptionID), delay);
+				LOG.debug("scheduling next prefetch decision in " + delay + " seconds");
+				TimeClock.schedule(new PrefetchTask(pf.subscriptionID), delay);
 			}
 		}
 	}
@@ -162,12 +165,14 @@ public class PrefetchingServiceImpl implements PrefetchingService {
 				if(ctx.isNetworkUnavailable()) {
 					LOG.debug("here unavailable: " + 
 							inv.getFirst().getAttribute(Context.ATTR_TIME) + 
-							" - req: " + Util.toString(inv.getSecond().serviceCall));
+							" - req: " + xmlUtil.getSOAPBodyAsString(
+									(Element)inv.getSecond().serviceCall));
 					doPrefetch(request, inv.getSecond());
 				} else {
 					LOG.debug("here available: " + 
 							inv.getFirst().getAttribute(Context.ATTR_TIME) + 
-							" - req: " + Util.toString(inv.getSecond().serviceCall));
+							" - req: " + xmlUtil.getSOAPBodyAsString(
+									(Element)inv.getSecond().serviceCall));
 				}
 			}
 		}

@@ -15,9 +15,9 @@ import io.hummer.prefetch.sim.VehicleSimulation.MovingEntities;
 import io.hummer.prefetch.sim.VehicleSimulation.MovingEntity;
 import io.hummer.prefetch.sim.util.AuditEvent;
 import io.hummer.prefetch.strategy.PrefetchStrategyContextBased;
+import io.hummer.prefetch.strategy.PrefetchStrategyPeriodic;
 import io.hummer.util.coll.Pair;
 import io.hummer.util.log.LogUtil;
-import io.hummer.util.math.MathUtil;
 import io.hummer.util.test.GenericTestResult;
 import io.hummer.util.test.GenericTestResult.IterationResult;
 import io.hummer.util.test.GenericTestResult.ResultType;
@@ -40,20 +40,54 @@ public class SimulationMain {
 
 	static final Logger LOG = LogUtil.getLogger();
 
+	static GenericTestResult result = new GenericTestResult();
+	static IterationResult test = result.newIteration();
+	static final IterationBasedAggregatedDescriptiveStatisticsDefault successInvocations = 
+			new IterationBasedAggregatedDescriptiveStatisticsDefault();
+	static final IterationBasedAggregatedDescriptiveStatisticsDefault failedInvocations = 
+			new IterationBasedAggregatedDescriptiveStatisticsDefault();
+	static final IterationBasedAggregatedDescriptiveStatisticsDefault prefetchHits = 
+			new IterationBasedAggregatedDescriptiveStatisticsDefault();
+	static final IterationBasedAggregatedDescriptiveStatisticsDefault prefetchMisses = 
+			new IterationBasedAggregatedDescriptiveStatisticsDefault();
+	static final IterationBasedAggregatedDescriptiveStatisticsDefault resultsUnused = 
+			new IterationBasedAggregatedDescriptiveStatisticsDefault();
+	static final IterationBasedAggregatedDescriptiveStatisticsDefault resultAges = 
+			new IterationBasedAggregatedDescriptiveStatisticsDefault();
+	//static final AtomicInteger prefetchMisses = new AtomicInteger();
+	static final AtomicLong dataPoints = new AtomicLong();
+	static final AtomicLong dataPointsGross = new AtomicLong();
+	static final AtomicDouble maxTimePoint = new AtomicDouble();
+	static final AtomicBoolean firstStrategyIteration = new AtomicBoolean(true);
+	static final List<? extends PrefetchStrategy> strategies = Arrays.asList(
+			new PrefetchStrategyPeriodic(2, "P1"),
+			new PrefetchStrategyPeriodic(10, "P2"),
+			new PrefetchStrategyContextBased(null, 0, 0, "C")
+//			, new PrefetchStrategyNone()
+			);
+	static final double startTime = System.currentTimeMillis();
+	static final List<Integer> numsSecsLookIntoContextFuture = 
+		Arrays.asList(30, 180, 
+				900);
+	static final List<Integer> snapshotTimeSteps = Arrays.asList(500, 1000);
+	static final String resultFile = SimulationMain.class.getResource("/").getPath() + "/../../etc/sim_result.xml";
+
 	public static void runWithConfig(MovingEntities ents, 
-			PrefetchStrategy strat, int numSecsLookIntoContextFuture) throws Exception {
-		int startSecs = 10000;
-		double stopSecs = maxTimePoint.get();
+			PrefetchStrategy strat, int secsLookIntoContextFuture) throws Exception {
+		int startSecs = 15000;
+		double stopSecs = 31000; //maxTimePoint.get(); //
 		int stepSecs = 10;
-		int lookIntoFutureSecs = 60*5;
 		TimeClock.setTime(0);
-		String stratID = strat.getClass().getSimpleName().replace("PrefetchStrategy", "").substring(0, 1);
+		String stratID = strat.id;
 
 		/* get service usages */
 		List<ServiceUsage> usages = new LinkedList<ServiceUsage>();
 		usages.add(SimulationTestData.getServiceUsage1());
 		usages.add(SimulationTestData.getServiceUsage2());
 		usages.add(SimulationTestData.getServiceUsage3());
+		usages.add(SimulationTestData.getServiceUsage4());
+		usages.add(SimulationTestData.getServiceUsage5());
+		usages.add(SimulationTestData.getServiceUsage6());
 		UsagePattern usageCombined = ServiceUsage.combine(
 				usages.toArray(new ServiceUsage[0]));
 
@@ -62,8 +96,10 @@ public class SimulationMain {
 				new HashMap<>();
 		for(MovingEntity ent : ents.entities) {
 			Context<Object> ctx = new Context<>();
-			PrefetchingCapableClient client = 
-					new PrefetchingCapableClient(ctx);
+			PrefetchingCapableClient client = new PrefetchingCapableClient(ctx);
+			if(strat instanceof PrefetchStrategyContextBased) {
+		    	ctx.addChangeListener(client);
+			}
 			clients.put(ent, client);
 
 			/* add subscriptions for service prefetchings */
@@ -76,10 +112,16 @@ public class SimulationMain {
 				PrefetchRequest r = new PrefetchRequest();
 				r.invocationPredictor = usage.invocationPredictor;
 				r.strategy = strat;
-				r.lookIntoFutureSecs = lookIntoFutureSecs;
+				r.lookIntoFutureSecs = secsLookIntoContextFuture;
+				int stepsLookFutureToTriggerStrategy = 2;
+//				int stepsLookFutureToTriggerStrategy = (int)(secsLookIntoContextFuture / stepSecs);
 				if(strat instanceof PrefetchStrategyContextBased) {
 					r.strategy = new PrefetchStrategyContextBased(
-							usage.pattern, (int)(numSecsLookIntoContextFuture / stepSecs), stepSecs);
+							usage.pattern, stepsLookFutureToTriggerStrategy, stepSecs);
+				} else if(strat instanceof PrefetchStrategyPeriodic) {
+					r.strategy = new PrefetchStrategyPeriodic(
+							Math.max(20, secsLookIntoContextFuture/
+									((PrefetchStrategyPeriodic)strat).timeoutSecs));
 				}
 				client.setPrefetchingStrategy(r);
 			}
@@ -94,17 +136,19 @@ public class SimulationMain {
 
 			for(int j : snapshotTimeSteps) {
 				if(secs % j == 0) {
-					String prefix = "s" + stratID + "m" + j + "f" + numSecsLookIntoContextFuture + 
+					String prefix = "s" + stratID + "m" + j + "f" + secsLookIntoContextFuture + 
 							"t" + secs /* + "i" + (secs / j) +*/;
-					test.addEntry(prefix + "hit", prefetchHits.getLastStatistics(j).getSecond().getSum());
-					test.addEntry(prefix + "miss", prefetchMisses.getLastStatistics(j).getSecond().getSum());
-					test.addEntry(prefix + "unused", resultsUnused.getLastStatistics(j).getSecond().getSum());
+					test.addEntry(prefix + "hit", prefetchHits.getLastStatistics(j, t).getSecond().getSum());
+					test.addEntry(prefix + "miss", prefetchMisses.getLastStatistics(j, t).getSecond().getSum());
+					test.addEntry(prefix + "unused", resultsUnused.getLastStatistics(j, t).getSecond().getSum());
+					test.addEntry(prefix + "resultAge", resultAges.getLastStatistics(j, t).getSecond().getMean());
 					test.addEntry(prefix + "hitTotal", prefetchHits.getStatistics().getSum());
 					test.addEntry(prefix + "missTotal", prefetchMisses.getStatistics().getSum());
 					test.addEntry(prefix + "unusedTotal", resultsUnused.getStatistics().getSum());
-					test.addEntry(prefix + "resultAge",
-							new MathUtil().average(TimeClock.
-									filterTimestampedValues(resultAges, t-j, t)));
+					test.addEntry(prefix + "resultAgeTotal", resultAges.getStatistics().getSum());
+//					test.addEntry(prefix + "resultAge",
+//							new MathUtil().average(TimeClock.
+//									filterTimestampedValues(resultAges, t-j, t)));
 
 					if(firstStrategyIteration.get()) {
 						test.addEntry(prefix + "failed", failedInvocations.getStatistics().getSum());
@@ -113,11 +157,14 @@ public class SimulationMain {
 				}
 			}
 
+			double maxTimeToMeasureLinkUsage = 3000;
 			if(firstStrategyIteration.get()) {
-				if(secs < 3000) {
-					test.addEntryAndRemoveOldIfSame(
-							"t[0-9]+usage", "t" + secs + "usage",
-					usageCombined.predictUsage(t), result);
+				if(secs < maxTimeToMeasureLinkUsage) {
+					double usage = usageCombined.predictUsage(t);
+					if(usage > 0.0) {
+						test.addEntryAndRemoveOldIfSame(
+							"t[0-9]+usage", "t" + secs + "usage", usage, result);
+					}
 				}
 			}
 
@@ -126,32 +173,21 @@ public class SimulationMain {
 				PathPoint loc = ent.getLocationAtTime(t);
 				if(loc != null) {
 					dataPointsGross.addAndGet(1);
-					PrefetchingCapableClient client = 
-							clients.get(ent);
+					PrefetchingCapableClient client = clients.get(ent);
 					Context<Object> ctx = client.getContext();
-					Map<String,Object> ctxUpdates = new HashMap<>();
-					/* set current time */
-					ctxUpdates.put(Context.ATTR_TIME, new Time((double)t));
-					/* set predicted path */
-					ctxUpdates.put(Context.ATTR_PATH, ent.path);
-					ctxUpdates.put(Context.ATTR_FUTURE_PATH, ent.getFuturePathAt(t));
-					/* set current location */
-					ctxUpdates.put(Context.ATTR_LOCATION, loc);
-					ctxUpdates.put(Context.ATTR_LOCATION_LAT, loc.coordinates.lat);
-					ctxUpdates.put(Context.ATTR_LOCATION_LON, loc.coordinates.lon);
-					/* set network availability */
-					boolean netAvail = loc.cellNetworkCoverage.hasAnyCoverage();
-					ctxUpdates.put(Context.ATTR_NETWORK_AVAILABLE, netAvail);
+					Map<String,Object> ctxUpdates = Context.generateUpdates(t, ent.path, loc);
 					if(firstStrategyIteration.get()) {
-						test.addEntryAndRemoveOldIfSame(
-							"e" + ent.id + "t[0-9]+linkSpeed",
-							"e" + ent.id + "t" + secs + "linkSpeed",
-							loc.cellNetworkCoverage.getMaxSpeed().getCapacityKbitPerSec(), result);
+						if(secs < maxTimeToMeasureLinkUsage) {
+							test.addEntryAndRemoveOldIfSame(
+								"e" + ent.id + "t[0-9]+linkSpeed",
+								"e" + ent.id + "t" + secs + "linkSpeed",
+								loc.cellNetworkCoverage.getMaxSpeed().getCapacityKbitPerSec(), result);
+						}
 					}
 					/* do the context update */
 					ctx.setContextAttributes(ctxUpdates);
 					LOG.info("Car " + ent.id + ": coverage at " + t + "(" + loc.time + 
-							"): " + loc.cellNetworkCoverage.hasAnyCoverage());
+							"): " + loc.cellNetworkCoverage.hasSufficientCoverage());
 					/* make invocations */
 					for(ServiceUsage u : usages) {
 //						if(u.pattern.predictUsage(t) > 0) {
@@ -162,6 +198,8 @@ public class SimulationMain {
 								//System.out.println("client inv: " + Util.toString(inv));
 								for(Pair<Context<Object>,ServiceInvocation> inv : invs) {
 									client.invoke(inv.getSecond());
+									// for now, only run one invocation per time interval, hence break here
+									break;
 								}
 							} catch (IllegalStateException e) {
 								/* swallow invocation errors (due to lack of 
@@ -177,9 +215,12 @@ public class SimulationMain {
 	static void createGraphs() throws Exception {
 		GenericTestResult r1 = GenericTestResult.load(resultFile);
 
+		List<String> stratIDs = new LinkedList<>();
+		int stratNum = 0;
 		for(PrefetchStrategy strat : strategies) {
-			String stratID = strat.getClass().getSimpleName()
-					.replace("PrefetchStrategy", "").substring(0, 1);
+			stratNum ++;
+			String stratID = strat.id;
+			stratIDs.add(stratID);
 			for(int j : snapshotTimeSteps) {
 				for(int f : numsSecsLookIntoContextFuture) {
 					String prefix = "s" + stratID + "m" + j + "f" + f;
@@ -190,7 +231,11 @@ public class SimulationMain {
 					r1.createGnuplot(r1.getAllLevelIDsByPattern(prefix + "t([0-9]+)resultAge", 1), 
 							new String[]{prefix + "t<level>resultAge"},
 							new String[]{"Prefetched Result Age"}, 
-							ResultType.MEAN, "Time", "Seconds", "etc/result_" + prefix + "_age.pdf");
+							ResultType.MEAN, "Time", "Result Age (sec)", "etc/result_" + prefix + "_age.pdf");
+					r1.createGnuplot(r1.getAllLevelIDsByPattern(prefix + "t([0-9]+)resultAgeTotal", 1), 
+							new String[]{prefix + "t<level>resultAgeTotal"},
+							new String[]{"Prefetched Result Age"}, 
+							ResultType.MEAN, "Time", "Result Age (sec)", "etc/result_" + prefix + "_ageTotal.pdf");
 					r1.createGnuplot(r1.getAllLevelIDsByPattern(prefix + "t([0-9]+)unused", 1), 
 							new String[]{prefix + "t<level>unused"},
 							new String[]{"Unused Invocations"}, 
@@ -205,14 +250,32 @@ public class SimulationMain {
 					new String[]{ 	prefix + "f" + futSecs1 + "t<level>miss",
 									prefix + "f" + futSecs2 + "t<level>miss",
 									prefix + "f" + futSecs3 + "t<level>miss"	},
-					new String[]{"t_f = " + futSecs1 + "sec","t_f = " + futSecs2 + "sec","t_f = " + futSecs3 + "sec"}, 
+					new String[]{"t_p = " + futSecs1 + "sec","t_p = " + futSecs2 + "sec","t_p = " + futSecs3 + "sec"}, 
 					ResultType.MEAN, "Time", "Prefetch Misses", "etc/result_" + prefix + "_misses.pdf");
 
-			r1.createGnuplot(r1.getAllLevelIDsByPattern(prefix + "f" + futSecs1 + "t([0-9]+)failed", 1), 
-					new String[]{prefix + "f" + futSecs1 + "t<level>failed", prefix + "f" + futSecs1 + "t<level>success"}, 
-					new String[]{"Failed Invocations", "Successful Invocations"}, 
-					ResultType.MEAN, "Time", "Value", "etc/result_success.pdf");
+			if(stratNum <= 1) {
+				r1.createGnuplot(r1.getAllLevelIDsByPattern(prefix + "f" + futSecs1 + "t([0-9]+)failed", 1), 
+						new String[]{prefix + "f" + futSecs1 + "t<level>failed", prefix + "f" + futSecs1 + "t<level>success"}, 
+						new String[]{"Request Possible (q_a >= q_r)", "Prefetching Required (q_a < q_r)"}, 
+						ResultType.MEAN, "Simulation Time (sec)", "Number of Occurrences", "etc/result_success.pdf",
+						"set yrange [0:45000]");
+			}
 		}
+
+		String suffix = "m" + snapshotTimeSteps.get(0) + "f" + 
+				numsSecsLookIntoContextFuture.get(numsSecsLookIntoContextFuture.size() - 1);
+		String pref1 = "s" + stratIDs.get(0) + suffix;
+		String pref2 = "s" + stratIDs.get(1) + suffix;
+		System.out.println(pref1 + "t([0-9]+)resultAgeTotal");
+		System.out.println(r1.getAllLevelIDsByPattern(pref1 + "t([0-9]+)resultAgeTotal", 1));
+		r1.createGnuplot(r1.getAllLevelIDsByPattern(pref1 + "t([0-9]+)resultAgeTotal", 1),
+				new String[]{pref1 + "t<level>resultAgeTotal", pref2 + "t<level>resultAgeTotal"}, 
+				new String[]{"Periodic Prefetching (t_p = 900, t_i = 450)",
+						"Context-Based Prefetching (t_p = 900)"},
+				ResultType.MEAN, "Simulation Time (sec)", "Accumulated Result Age (sec)", 
+				"etc/result_ageTotal.pdf", "set yrange [0:250000]"
+				);
+
 		String prefix = "";
 		r1.createGnuplot(r1.getAllLevelIDsByPattern(prefix + "t([0-9]+)usage", 1), 
 				new String[]{prefix + "t<level>usage"}, 
@@ -221,54 +284,25 @@ public class SimulationMain {
 		String clientID = "1";
 		String prefix1 = "e" + clientID;
 		String pattern = "(" + prefix1 + ")?t([0-9]+)((linkSpeed)|(usage))";
-		//System.out.println(r1.getAllLevelIDsByPattern(pattern, 2).toString().replace(",", "\n"));
 		r1.createGnuplot(r1.getAllLevelIDsByPattern(pattern, 2),
 				new String[]{prefix + "t<level>usage", prefix1 + "t<level>linkSpeed"}, 
-				new String[]{"Service Data Usage", "Estimated Available Link Speed"},
+				new String[]{"Projected Required Network Quality (q_r)",
+					"Estimated Available Network Quality (q_a)"},
 				ResultType.MEAN, "Simulation Time (sec)", "Data Rate (kbps)", "etc/result_client1_linkSpeed.pdf",
-				"set logscale y", "set yrange [1:1000000]", "set xrange [2970:*]",
-				//"set xtics format '%s%c'"
-				//"set xtics rotate by 90 offset 0,-2"
-				"set format x '%.1tK'",
+				"set logscale y", "set yrange [1:1000000]", 
+				//"set xrange [2970:*]", "set xtics format '%s%c'" "set xtics rotate by 90 offset 0,-2", "set format x '%.1tK'",
 				"set format y '10^{%T}'"
 				);
-	}
 
-	static GenericTestResult result = new GenericTestResult();
-	static IterationResult test = result.newIteration();
-	static final IterationBasedAggregatedDescriptiveStatisticsDefault successInvocations = 
-			new IterationBasedAggregatedDescriptiveStatisticsDefault();
-	static final IterationBasedAggregatedDescriptiveStatisticsDefault failedInvocations = 
-			new IterationBasedAggregatedDescriptiveStatisticsDefault();
-	static final IterationBasedAggregatedDescriptiveStatisticsDefault prefetchHits = 
-			new IterationBasedAggregatedDescriptiveStatisticsDefault();
-	static final IterationBasedAggregatedDescriptiveStatisticsDefault prefetchMisses = 
-			new IterationBasedAggregatedDescriptiveStatisticsDefault();
-	static final IterationBasedAggregatedDescriptiveStatisticsDefault resultsUnused = 
-			new IterationBasedAggregatedDescriptiveStatisticsDefault();
-	//static final AtomicInteger prefetchMisses = new AtomicInteger();
-	static final AtomicLong dataPoints = new AtomicLong();
-	static final AtomicLong dataPointsGross = new AtomicLong();
-	static final AtomicDouble maxTimePoint = new AtomicDouble();
-	static final Map<Double,Double> resultAges = new HashMap<>();
-	static final AtomicBoolean firstStrategyIteration = new AtomicBoolean(true);
-	static final List<? extends PrefetchStrategy> strategies = Arrays.asList(
-//			new PrefetchStrategyPeriodic(60),
-			new PrefetchStrategyContextBased(null, 0, 0)
-//			, new PrefetchStrategyNone()
-			);
-	static final List<Integer> numsSecsLookIntoContextFuture = 
-		Arrays.asList(30, 300, 1800);
-	static final List<Integer> snapshotTimeSteps = Arrays.asList(500, 1000);
-	static final String resultFile = SimulationMain.class.getResource("/").getPath() + "/../../etc/sim_result.xml";
+	}
 
 	public static void startSimulation(String serviceURL) throws Exception {
 
 		SimulationTestData.setServiceURL(serviceURL);
 
-		int numCars = 30;
+		int numCars = 50;
 		MovingEntities entities = SimulationTestData.getData(1, numCars);
-//		MovingEntities entities = SimulationTestData.getData(25, 26);
+//		MovingEntities entities = SimulationTestData.getData(29, 29);
 
 		for(MovingEntity ent : entities.entities) {
 			dataPoints.addAndGet(ent.path.size());
@@ -277,9 +311,7 @@ public class SimulationMain {
 				maxTimePoint.set(maxTime);
 			}
 		}
-		///* add usage patterns to entities */
-		//SimulationTestData.addUsagePatterns(entities);
-		
+
 		test.addEntry("dataPoints", dataPoints.get());
 
 		System.out.println("Starting simulation...");
@@ -288,6 +320,9 @@ public class SimulationMain {
 		Runtime.getRuntime().addShutdownHook(new Thread() {
 			public void run() {
 				test.addEntry("dataPointsGross", dataPointsGross.get());
+				double totalTime = System.currentTimeMillis() - startTime;
+				LOG.info("Total execution time: " + totalTime);
+				test.addEntry("totalRunTime", totalTime);
 				result.save(resultFile);
 			}
 		});
@@ -304,10 +339,11 @@ public class SimulationMain {
 					@SuppressWarnings("unchecked")
 					double resultTime = (double)((Map<String,Object>)e.data).get(Context.ATTR_TIME);
 					//System.out.println("age: " + (TimeClock.now() - resultTime));
-					resultAges.put(TimeClock.now(), TimeClock.now() - resultTime);
+					resultAges.addValue(TimeClock.now(), TimeClock.now() - resultTime);
 				} else if(e.type.equals(AuditEvent.E_PREFETCH_MISS)) {
 					System.out.println(e); // TODO
 					prefetchMisses.addValue(TimeClock.now(), 1);
+					//throw new RuntimeException();
 				} else if(e.type.equals(AuditEvent.E_UNUSED_RESULT)) {
 					resultsUnused.addValue(TimeClock.now(), 1);
 				}
@@ -315,13 +351,14 @@ public class SimulationMain {
 		});
 
 		for(PrefetchStrategy s : strategies) {
-			for(int numSecsLookIntoContextFuture : numsSecsLookIntoContextFuture) {
+			for(int futSecs : numsSecsLookIntoContextFuture) {
 				failedInvocations.clear();
 				successInvocations.clear();
 				prefetchHits.clear();
 				prefetchMisses.clear();
+				resultsUnused.clear();
 				resultAges.clear();
-				runWithConfig(entities, s, numSecsLookIntoContextFuture);
+				runWithConfig(entities, s, futSecs);
 				firstStrategyIteration.set(false);
 				System.gc();
 			}
@@ -339,16 +376,16 @@ public class SimulationMain {
 			startServices = false;
 			serviceHost = args[1];
 		}
+		// draw graphs
+		boolean createGraphs = false;
+		if(createGraphs && new File(resultFile).exists()) {
+			createGraphs();
+			System.exit(0);
+		}
 		String serviceURL = "http://" + serviceHost + ":8283/traffic";
 		if(startServices) {
 			/* deploy services */
 			SimulationTestData.deployTestServices(serviceURL);
-		}
-		// draw graphs
-		boolean createGraphs = true;
-		if(createGraphs && new File(resultFile).exists()) {
-			createGraphs();
-			System.exit(0);
 		}
 		if(startClients) {
 			startSimulation(serviceURL);
