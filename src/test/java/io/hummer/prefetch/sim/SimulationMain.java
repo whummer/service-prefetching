@@ -142,6 +142,11 @@ public class SimulationMain {
 					test.addEntry(prefix + "miss", prefetchMisses.getLastStatistics(j, t).getSecond().getSum());
 					test.addEntry(prefix + "unused", resultsUnused.getLastStatistics(j, t).getSecond().getSum());
 					test.addEntry(prefix + "resultAge", resultAges.getLastStatistics(j, t).getSecond().getMean());
+					test.addEntry(prefix + "resultAgeMin", resultAges.getLastStatistics(j, t).getSecond().getMin());
+					test.addEntry(prefix + "resultAgeMax", resultAges.getLastStatistics(j, t).getSecond().getMax());
+					test.addEntry(prefix + "resultAgeQ1", resultAges.getLastStatistics(j, t).getSecond().getPercentile(25));
+					test.addEntry(prefix + "resultAgeMed", resultAges.getLastStatistics(j, t).getSecond().getPercentile(50));
+					test.addEntry(prefix + "resultAgeQ3", resultAges.getLastStatistics(j, t).getSecond().getPercentile(75));
 					test.addEntry(prefix + "hitTotal", prefetchHits.getStatistics().getSum());
 					test.addEntry(prefix + "missTotal", prefetchMisses.getStatistics().getSum());
 					test.addEntry(prefix + "unusedTotal", resultsUnused.getStatistics().getSum());
@@ -227,15 +232,21 @@ public class SimulationMain {
 					r1.createGnuplot(r1.getAllLevelIDsByPattern(prefix + "t([0-9]+)hit", 1), 
 							new String[]{prefix + "t<level>hit", prefix + "t<level>miss"},
 							new String[]{"Prefetch Hits", "Prefetch Misses"}, 
-							ResultType.MEAN, "Time", "Value", "etc/result_" + prefix + "_hitmiss.pdf");
-					r1.createGnuplot(r1.getAllLevelIDsByPattern(prefix + "t([0-9]+)resultAge", 1), 
-							new String[]{prefix + "t<level>resultAge"},
+							ResultType.MEAN, "Simulation Time (sec)", "Value", "etc/result_" + prefix + "_hitmiss.pdf");
+					r1.createGnuplot(r1.getAllLevelIDsByPattern(prefix + "t([0-9]+)resultAge", 1),
+							new String[]{prefix + "t<level>resultAgeQ1:" +
+									prefix + "t<level>resultAgeMin:" +
+									prefix + "t<level>resultAgeMax:" +
+									prefix + "t<level>resultAgeQ3:" +
+									prefix + "t<level>resultAge"//, prefix + "t<level>resultAge"
+							},
 							new String[]{"Prefetched Result Age"}, 
-							ResultType.MEAN, "Time", "Result Age (sec)", "etc/result_" + prefix + "_age.pdf");
+							ResultType.MEAN, "Simulation Time (sec)", "Result Age (sec)", "etc/result_" + prefix + "_age.pdf",
+							GenericTestResult.CMD_DRAW_LINE_THROUGH_CANDLESTICKS, "set boxwidth 200");
 					r1.createGnuplot(r1.getAllLevelIDsByPattern(prefix + "t([0-9]+)resultAgeTotal", 1), 
 							new String[]{prefix + "t<level>resultAgeTotal"},
 							new String[]{"Prefetched Result Age"}, 
-							ResultType.MEAN, "Time", "Result Age (sec)", "etc/result_" + prefix + "_ageTotal.pdf");
+							ResultType.MEAN, "Simulation Time (sec)", "Result Age (sec)", "etc/result_" + prefix + "_ageTotal.pdf");
 					r1.createGnuplot(r1.getAllLevelIDsByPattern(prefix + "t([0-9]+)unused", 1), 
 							new String[]{prefix + "t<level>unused"},
 							new String[]{"Unused Invocations"}, 
@@ -251,7 +262,7 @@ public class SimulationMain {
 									prefix + "f" + futSecs2 + "t<level>miss",
 									prefix + "f" + futSecs3 + "t<level>miss"	},
 					new String[]{"t_p = " + futSecs1 + "sec","t_p = " + futSecs2 + "sec","t_p = " + futSecs3 + "sec"}, 
-					ResultType.MEAN, "Time", "Prefetch Misses", "etc/result_" + prefix + "_misses.pdf");
+					ResultType.MEAN, "Simulation Time (sec)", "Prefetch Misses", "etc/result_" + prefix + "_misses.pdf");
 
 			if(stratNum <= 1) {
 				r1.createGnuplot(r1.getAllLevelIDsByPattern(prefix + "f" + futSecs1 + "t([0-9]+)failed", 1), 
@@ -266,14 +277,36 @@ public class SimulationMain {
 				numsSecsLookIntoContextFuture.get(numsSecsLookIntoContextFuture.size() - 1);
 		String pref1 = "s" + stratIDs.get(0) + suffix;
 		String pref2 = "s" + stratIDs.get(1) + suffix;
+		String pref3 = "s" + stratIDs.get(2) + suffix;
 		System.out.println(pref1 + "t([0-9]+)resultAgeTotal");
 		System.out.println(r1.getAllLevelIDsByPattern(pref1 + "t([0-9]+)resultAgeTotal", 1));
 		r1.createGnuplot(r1.getAllLevelIDsByPattern(pref1 + "t([0-9]+)resultAgeTotal", 1),
-				new String[]{pref1 + "t<level>resultAgeTotal", pref2 + "t<level>resultAgeTotal"}, 
+				new String[]{pref1 + "t<level>resultAgeTotal", pref2 + "t<level>resultAgeTotal", pref3 + "t<level>resultAgeTotal"}, 
 				new String[]{"Periodic Prefetching (t_p = 900, t_i = 450)",
-						"Context-Based Prefetching (t_p = 900)"},
+							"Periodic Prefetching (t_p = 900, t_i = 90)",
+							"Context-Based Prefetching (t_p = 900)"},
 				ResultType.MEAN, "Simulation Time (sec)", "Accumulated Result Age (sec)", 
-				"etc/result_ageTotal.pdf", "set yrange [0:250000]"
+				"etc/result_ageTotal.pdf", "set yrange [0:250000]", "set key at -3500,240000"
+				);
+
+		System.out.println(pref1 + "t([0-9]+)unusedTotal");
+		System.out.println(r1.getAllLevelIDsByPattern(pref1 + "t([0-9]+)unusedTotal", 1));
+		r1.createGnuplot(r1.getAllLevelIDsByPattern(pref1 + "t([0-9]+)unusedTotal", 1),
+				new String[]{pref2 + "t<level>unusedTotal", pref1 + "t<level>unusedTotal"}, 
+				new String[]{"Periodic Prefetching (t_p = 900, t_i = 90)",
+							"Periodic Prefetching (t_p = 900, t_i = 450)"},
+				ResultType.MEAN, "Simulation Time (sec)", "Unused Prefetched Results", 
+				"etc/result_unusedTotal.pdf" , "set yrange [0:4000]", "set key at -3500,3800"
+				);
+
+		System.out.println(pref1 + "t([0-9]+)unused");
+		System.out.println(r1.getAllLevelIDsByPattern(pref1 + "t([0-9]+)unused", 1));
+		r1.createGnuplot(r1.getAllLevelIDsByPattern(pref1 + "t([0-9]+)unused", 1),
+				new String[]{pref2 + "t<level>unused", pref1 + "t<level>unused"}, 
+				new String[]{"Periodic Prefetching (t_p = 900, t_i = 90)",
+							"Periodic Prefetching (t_p = 900, t_i = 450)"},
+				ResultType.MEAN, "Simulation Time (sec)", "Unused Prefetched Results", 
+				"etc/result_unused.pdf" , "set yrange [0:600]", "set key at -3500,580"
 				);
 
 		String prefix = "";
@@ -377,7 +410,7 @@ public class SimulationMain {
 			serviceHost = args[1];
 		}
 		// draw graphs
-		boolean createGraphs = false;
+		boolean createGraphs = true;
 		if(createGraphs && new File(resultFile).exists()) {
 			createGraphs();
 			System.exit(0);
