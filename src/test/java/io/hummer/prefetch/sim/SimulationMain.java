@@ -410,7 +410,7 @@ public class SimulationMain {
 			serviceHost = args[1];
 		}
 		// draw graphs
-		boolean createGraphs = true;
+		boolean createGraphs = false;
 		if(createGraphs && new File(resultFile).exists()) {
 			createGraphs();
 			System.exit(0);
