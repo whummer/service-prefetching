@@ -60,7 +60,7 @@ public class Path {
 		if(t < startTime || t > endTime) {
 			return null;
 		}
-		int count = 0;
+//		int count = 0;
 		for(PathPoint p : points) {
 //			count ++;
 //			if(count >= points.size()) {

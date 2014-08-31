@@ -10,6 +10,8 @@ import io.hummer.prefetch.context.Path.PathPoint;
 import io.hummer.util.coll.CollectionsUtil.MapBuilder;
 
 /**
+ * Simple implementation of a user context, 
+ * defined by a set of context attributes.
  * @author Waldemar Hummer (hummer@dsg.tuwien.ac.at)
  */
 public class Context<T> {

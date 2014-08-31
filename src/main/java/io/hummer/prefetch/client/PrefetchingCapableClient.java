@@ -25,6 +25,10 @@ import org.w3c.dom.Element;
 import io.hummer.util.coll.CollectionsUtil.MapBuilder;
 import io.hummer.util.xml.XMLUtil;
 
+/**
+ * Implementation of a client which is capable of service prefetching.
+ * @author Waldemar Hummer
+ */
 public class PrefetchingCapableClient 
 	extends PrefetchingServiceImpl 
 	implements PrefetchingResultReceiver, ContextChangeListener<Object> {

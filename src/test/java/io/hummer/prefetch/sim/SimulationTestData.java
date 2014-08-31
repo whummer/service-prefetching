@@ -368,24 +368,4 @@ public class SimulationTestData {
 				new XMLUtil().toElement("<result/>"));
 	}
 
-//	static void addUsagePatterns(MovingEntities entities) throws Exception {
-//
-//		ServiceInvocation inv1 = new ServiceInvocation();
-//		ServiceInvocation inv2 = new ServiceInvocation();
-//		inv1.serviceEPR = eprTrafficService;
-//		inv2.serviceEPR = eprTrafficService;
-//		Element body = WSClient.toElement(
-//				"<tns:getTrafficInfo " +
-//				"xmlns:tns=\"" + VehicleInfoService.NAMESPACE + "\"/>");
-//		inv1.serviceCall = WSClient.createEnvelopeFromBody(body);
-//		inv2.serviceCall = WSClient.createEnvelopeFromBody(body);
-//		for(MovingEntity ent : entities.entities) {
-//			if(ent.usagePatterns == null) {
-//				ent.usagePatterns = new LinkedList<>();
-//			}
-//			ent.usagePatterns.add(new ServiceUsagePattern(inv1, UsagePattern.periodic(60, 50, 4)));
-//			ent.usagePatterns.add(new ServiceUsagePattern(inv2, UsagePattern.constant(20)));
-//		}
-//	}
-
 }
