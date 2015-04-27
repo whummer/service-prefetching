@@ -266,7 +266,7 @@ public class SimulationMain {
 
 			if(stratNum <= 1) {
 				r1.createGnuplot(r1.getAllLevelIDsByPattern(prefix + "f" + futSecs1 + "t([0-9]+)failed", 1), 
-						new String[]{prefix + "f" + futSecs1 + "t<level>failed", prefix + "f" + futSecs1 + "t<level>success"}, 
+						new String[]{prefix + "f" + futSecs1 + "t<level>success", prefix + "f" + futSecs1 + "t<level>failed"}, 
 						new String[]{"Request Possible (q_a >= q_r)", "Prefetching Required (q_a < q_r)"}, 
 						ResultType.MEAN, "Simulation Time (sec)", "Number of Occurrences", "etc/result_success.pdf",
 						"set yrange [0:45000]");
